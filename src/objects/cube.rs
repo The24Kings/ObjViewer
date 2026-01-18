@@ -1,7 +1,4 @@
-use crate::game::{
-    Renderable,
-    render::{Material, Mesh},
-};
+use crate::game::{Material, Mesh, Renderable};
 
 pub struct Cube {
     pub material: Material,

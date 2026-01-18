@@ -40,11 +40,11 @@ impl ViewPort {
         cube_shader
             .add(
                 glow::FRAGMENT_SHADER,
-                include_str!("../shaders/loaded_obj.frag"),
+                include_str!("../../shaders/loaded_obj.frag"),
             )
             .add(
                 glow::VERTEX_SHADER,
-                include_str!("../shaders/loaded_obj.vert"),
+                include_str!("../../shaders/loaded_obj.vert"),
             )
             .link();
 
