@@ -1,5 +1,6 @@
 use glam::Mat4;
-use glow::{Context, HasContext};
+use glow::Context;
+use limited_gl::gl_check_error;
 use std::rc::Rc;
 
 use crate::game::Renderable;
@@ -24,7 +25,7 @@ impl ObjectRenderer {
 
     pub fn update(&self) {}
 
-    pub fn draw(&mut self, pvMatrix: &Mat4) {
+    pub fn draw(&mut self, vp: &Mat4) {
         for renderable in &self.render_targets {
             let material = renderable.material();
             let mesh = renderable.mesh();
@@ -32,12 +33,9 @@ impl ObjectRenderer {
             material.apply(&self.gl);
 
             // Set uniforms
-            if let Some(loc) = material.shader.getUniformLocation("pvMatrix") {
-                unsafe {
-                    self.gl
-                        .uniform_matrix_4_f32_slice(Some(&loc), false, pvMatrix.as_ref());
-                }
-            }
+            material.shader.setUniform4fm("vp", vp);
+
+            gl_check_error!(&self.gl);
 
             // Draw mesh
             mesh.draw(&self.gl);

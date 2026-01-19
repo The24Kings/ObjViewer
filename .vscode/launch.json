@@ -1,0 +1,24 @@
+{
+    // The following are sample configurations for common case scenarios of debugging
+    // Rust in Visual Studio Code
+    //
+    // For syntax, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    //
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Launch an application",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceRoot}/target/debug/limited-gl",
+            "args": [ "arg1", "arg2" ],
+            "cwd": "${workspaceRoot}/path-to",
+        },
+        {
+            "name": "Attach to a named executable",
+            "type": "lldb",
+            "request": "attach",
+            "program": "${workspaceRoot}/target/debug/limited-gl",
+        },
+    ]
+}

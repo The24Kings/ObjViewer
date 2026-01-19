@@ -1,5 +1,6 @@
 use bytemuck::cast_slice;
 use glow::{Buffer, Context, HasContext, VertexArray};
+use limited_gl::gl_check_error;
 use std::mem::size_of;
 use std::rc::Rc;
 
@@ -21,6 +22,8 @@ impl Mesh {
 
         unsafe {
             gl.bind_vertex_array(self.vao);
+
+            gl_check_error!(gl);
 
             if let Some(_) = self.ibo {
                 gl.draw_elements(
@@ -53,11 +56,17 @@ impl Mesh {
 
             gl.bind_vertex_array(Some(vao));
 
+            gl_check_error!(gl);
+
             let stride = (6 * size_of::<f32>()) as i32; // 3 for position, 3 for color
             gl.vertex_array_vertex_buffer(vao, 0, Some(vbo), 0, stride);
 
+            gl_check_error!(gl);
+
             // Upload vertex data
             gl.named_buffer_data_u8_slice(vbo, cast_slice(&self.vertices), glow::STATIC_DRAW);
+
+            gl_check_error!(gl);
 
             // Upload index data if present
             if !self.indices.is_empty() {
@@ -65,7 +74,9 @@ impl Mesh {
                     .create_named_buffer()
                     .expect("Failed to create index buffer");
                 gl.vertex_array_element_buffer(vao, Some(ibo));
+                gl_check_error!(gl);
                 gl.named_buffer_data_u8_slice(ibo, cast_slice(&self.indices), glow::STATIC_DRAW);
+                gl_check_error!(gl);
                 self.ibo = Some(ibo);
             }
 
@@ -84,6 +95,7 @@ impl Mesh {
                 gl.vertex_array_attrib_format_f32(vao, *loc, 3, glow::FLOAT, false, offset);
                 gl.vertex_array_attrib_binding_f32(vao, *loc, 0);
                 gl.enable_vertex_array_attrib(vao, *loc);
+                gl_check_error!(gl);
             }
 
             Ok(())

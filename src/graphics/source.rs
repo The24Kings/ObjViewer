@@ -1,4 +1,5 @@
 use glow::{Context, HasContext, NativeProgram, NativeShader};
+use limited_gl::gl_check_error;
 use std::rc::Rc;
 
 #[derive(Clone)]
@@ -24,12 +25,16 @@ impl ShaderSource {
             renderer.shader_source(shader, source);
             renderer.compile_shader(shader);
 
+            gl_check_error!(&renderer);
+
             if !renderer.get_shader_compile_status(shader) {
                 let error = renderer.get_shader_info_log(shader);
                 panic!("Failed to compile shader: {}", error);
             }
 
             renderer.attach_shader(program, shader);
+
+            gl_check_error!(&renderer);
 
             Self {
                 gl: renderer,

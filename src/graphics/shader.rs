@@ -1,5 +1,6 @@
 use glam::{Mat4, Vec2, Vec3, Vec4};
 use glow::{Context, HasContext, NativeUniformLocation, Program};
+use limited_gl::gl_check_error;
 use std::{collections::HashMap, rc::Rc};
 
 use crate::graphics::ShaderSource;
@@ -18,6 +19,8 @@ impl Shader {
     pub fn new(renderer: Rc<Context>) -> Self {
         unsafe {
             let program = renderer.create_program().expect("Failed to create program");
+
+            gl_check_error!(&renderer);
 
             Self {
                 gl: renderer,
@@ -50,6 +53,8 @@ impl Shader {
         unsafe {
             self.gl.link_program(self.handle);
 
+            gl_check_error!(&self.gl);
+
             if !self.is_linked() {
                 let error = self.gl.get_program_info_log(self.handle);
                 panic!("Failed to link shader: {}", error);
@@ -71,6 +76,7 @@ impl Shader {
 
         unsafe {
             self.gl.use_program(Some(self.handle));
+            gl_check_error!(&self.gl);
         }
     }
 
@@ -149,7 +155,7 @@ impl Shader {
         }
     }
 
-    pub fn setMatrix4f(&self, name: &str, mat: &Mat4) {
+    pub fn setUniform4fm(&self, name: &str, mat: &Mat4) {
         unsafe {
             self.gl.uniform_matrix_4_f32_slice(
                 self.getUniformLocation(name).as_ref(),

@@ -9,7 +9,7 @@ use winit_input_helper::WinitInputHelper;
 
 use crate::game::{Camera, Material};
 use crate::graphics::{ObjectRenderer, Shader};
-use crate::objects::Cube;
+use crate::objects::Triangle;
 
 pub struct ViewPort {
     window: Rc<Window>,
@@ -35,9 +35,9 @@ impl ViewPort {
 
         let mut renderer = ObjectRenderer::new(gl.clone()).unwrap();
 
-        // Create shader for the cube
-        let mut cube_shader = Shader::new(gl.clone());
-        cube_shader
+        // Create shader for the triangle
+        let mut shader = Shader::new(gl.clone());
+        shader
             .add(
                 glow::FRAGMENT_SHADER,
                 include_str!("../../shaders/loaded_obj.frag"),
@@ -48,20 +48,18 @@ impl ViewPort {
             )
             .link();
 
-        let shader_rc = Rc::new(cube_shader);
-
-        // Create cube material and upload its mesh to the GPU
+        let shader_rc = Rc::new(shader);
+        // Create triangle material and upload its mesh to the GPU
         let material = Material::new(shader_rc.clone());
-        let mut cube = Cube::new(material);
+        let mut triangle = Triangle::new(material);
 
-        cube.translate(0.0, 0.0, -5.0);
-
-        cube.mesh
+        triangle
+            .mesh
             .upload(&gl, shader_rc)
-            .expect("Failed to upload cube mesh");
+            .expect("Failed to upload triangle mesh");
 
         // Add to renderer targets
-        renderer.add_renderable(cube);
+        renderer.add_renderable(triangle);
 
         ViewPort {
             window,
@@ -89,15 +87,23 @@ impl ViewPort {
         let size = self.window.inner_size();
         let aspect = size.width as f32 / size.height as f32;
 
-        let projection = Mat4::perspective_rh(
-            self.camera.frustum.fov.to_radians(),
-            aspect,
+        // let projection = Mat4::perspective_rh(
+        //     self.camera.frustum.fov.to_radians(),
+        //     aspect,
+        //     self.camera.frustum.near,
+        //     self.camera.frustum.far,
+        // );
+        let projection = Mat4::orthographic_rh(
+            -aspect * 5.0,
+            aspect * 5.0,
+            -5.0,
+            5.0,
             self.camera.frustum.near,
             self.camera.frustum.far,
         );
-        let view = self.camera.getViewMatrix();
+        // let view = self.camera.getViewMatrix();
 
-        let mvp = Mat4::IDENTITY * view * projection;
+        let mvp = Mat4::IDENTITY * projection;
         self.renderer.draw(&mvp);
     }
 }

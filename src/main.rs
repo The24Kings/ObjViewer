@@ -21,10 +21,10 @@ use winit_input_helper::WinitInputHelper;
 
 use crate::window::ViewPort;
 
-mod game;
-mod graphics;
-mod objects;
-mod window;
+pub mod game;
+pub mod graphics;
+pub mod objects;
+pub mod window;
 
 const WIDTH: u32 = 800;
 const HEIGHT: u32 = 600;
