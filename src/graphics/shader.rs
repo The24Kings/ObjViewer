@@ -9,7 +9,7 @@ use crate::graphics::ShaderSource;
 pub struct Shader {
     gl: Rc<Context>,
     pub handle: Program,
-    pub attributes: HashMap<String, u32>, // Name and Location
+    pub attributes: HashMap<&'static str, u32>, // Name and Location
     sources: Vec<ShaderSource>,
     destroyed: bool,
 }
@@ -80,6 +80,12 @@ impl Shader {
         }
     }
 
+    /// Add attribute to the shader
+    pub fn add_attribute(&mut self, name: &'static str) {
+        self.attributes
+            .insert(name, self.getAttribLocation(name).unwrap());
+    }
+
     /// Remove shader from GPU memory
     pub fn delete(&mut self) {
         if self.destroyed {
@@ -93,11 +99,11 @@ impl Shader {
         self.destroyed = true;
     }
 
-    pub fn getAttribLocation(&self, name: &str) -> Option<u32> {
+    fn getAttribLocation(&self, name: &str) -> Option<u32> {
         unsafe { self.gl.get_attrib_location(self.handle, name) }
     }
 
-    pub fn getUniformLocation(&self, name: &str) -> Option<NativeUniformLocation> {
+    fn getUniformLocation(&self, name: &str) -> Option<NativeUniformLocation> {
         unsafe { self.gl.get_uniform_location(self.handle, name) }
     }
 

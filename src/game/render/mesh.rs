@@ -73,10 +73,11 @@ impl Mesh {
                 let ibo = gl
                     .create_named_buffer()
                     .expect("Failed to create index buffer");
+
                 gl.vertex_array_element_buffer(vao, Some(ibo));
-                gl_check_error!(gl);
                 gl.named_buffer_data_u8_slice(ibo, cast_slice(&self.indices), glow::STATIC_DRAW);
                 gl_check_error!(gl);
+
                 self.ibo = Some(ibo);
             }
 
@@ -85,7 +86,7 @@ impl Mesh {
 
             // Setup vertex attributes
             for (name, loc) in &shader.attributes {
-                let offset = match name.as_str() {
+                let offset = match *name {
                     "i_position" => 0,
                     "i_color" => (3 * size_of::<f32>()) as u32,
                     _ => {

@@ -34,4 +34,12 @@ impl Triangle {
 
         Self { material, mesh }
     }
+
+    pub fn translate(&mut self, x: f32, y: f32, z: f32) {
+        for i in 0..self.mesh.vertices.len() / 6 {
+            self.mesh.vertices[i * 6 + 0] += x;
+            self.mesh.vertices[i * 6 + 1] += y;
+            self.mesh.vertices[i * 6 + 2] += z;
+        }
+    }
 }
