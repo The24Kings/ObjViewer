@@ -1,7 +1,8 @@
-use glam::Mat4;
+use glam::{Mat4, Vec3};
 use glow::{Context, HasContext};
 use log::info;
 use std::rc::Rc;
+use std::time::Instant;
 use winit::event_loop::ActiveEventLoop;
 use winit::keyboard::KeyCode;
 use winit::window::Window;
@@ -14,6 +15,7 @@ use crate::objects::Triangle;
 pub struct ViewPort {
     window: Rc<Window>,
     gl: Rc<Context>,
+    start_time: Instant,
     camera: Camera,
     renderer: ObjectRenderer,
 }
@@ -31,7 +33,9 @@ impl ViewPort {
             gl.polygon_mode(glow::FRONT_AND_BACK, glow::FILL);
         }
 
-        let camera = Camera::new(0.1, 100.0);
+        let mut camera = Camera::new(0.1, 100.0);
+
+        camera.set_position(Vec3::new(0.0, 0.0, 5.0));
 
         let mut renderer = ObjectRenderer::new(gl.clone()).unwrap();
 
@@ -56,8 +60,6 @@ impl ViewPort {
 
         let mut triangle = Triangle::new(material);
 
-        triangle.translate(0.0, 0.0, -5.0);
-
         triangle
             .mesh
             .upload(&gl, shader_rc)
@@ -69,6 +71,7 @@ impl ViewPort {
         ViewPort {
             window,
             gl,
+            start_time: Instant::now(),
             camera,
             renderer,
         }
@@ -83,6 +86,8 @@ impl ViewPort {
     }
 
     pub fn render(&mut self) {
+        let dt = self.start_time.elapsed().as_secs_f32();
+
         unsafe {
             self.gl
                 .clear(glow::COLOR_BUFFER_BIT | glow::DEPTH_BUFFER_BIT);
@@ -91,6 +96,10 @@ impl ViewPort {
 
         let size = self.window.inner_size();
         let aspect = size.width as f32 / size.height as f32;
+
+        // Rotate the camera in a circle (use persistent start time)
+        self.camera.pitch = 15.0 * (dt * 2.0).sin();
+        self.camera.yaw = 15.0 * (dt * 2.0).cos();
 
         let projection = Mat4::perspective_rh(
             self.camera.frustum.fov.to_radians(),
@@ -106,9 +115,11 @@ impl ViewPort {
         //     self.camera.frustum.near,
         //     self.camera.frustum.far,
         // );
-        // let view = self.camera.getViewMatrix();
+        let view = self.camera.getViewMatrix();
 
-        let mvp = Mat4::IDENTITY * projection;
+        // projection * view * model (model is identity here)
+        // let mvp = Mat4::IDENTITY * view * projection;
+        let mvp = projection * view * Mat4::IDENTITY;
         self.renderer.draw(&mvp);
     }
 }

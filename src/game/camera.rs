@@ -1,5 +1,7 @@
 use glam::{Mat4, Quat, Vec3};
+use render_derive::with_transform;
 
+#[derive(Default)]
 pub struct Frustum {
     pub near: f32,
     pub far: f32,
@@ -17,6 +19,8 @@ impl Frustum {
     }
 }
 
+#[with_transform]
+#[derive(Default)]
 pub struct Camera {
     pub frustum: Frustum,
     pub pitch: f32,
@@ -33,6 +37,7 @@ impl Camera {
             pitch: 0.0,
             yaw: 0.0,
             sensitivity: 0.08,
+            ..Default::default()
         }
     }
 
@@ -49,6 +54,6 @@ impl Camera {
     }
 
     pub fn getViewMatrix(&self) -> Mat4 {
-        self.getCameraRotation() * Mat4::IDENTITY // TODO: Change to the actual camera position (needs traits)
+        self.getCameraRotation() * self.get_position_matrix() // TODO: Change to the actual camera position (needs traits)
     }
 }
