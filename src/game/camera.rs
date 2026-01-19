@@ -1,5 +1,5 @@
 use glam::{Mat4, Quat, Vec3};
-use render_derive::with_transform;
+use transform_derive::with_transform;
 
 #[derive(Default)]
 pub struct Frustum {

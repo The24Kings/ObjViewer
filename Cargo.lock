@@ -614,10 +614,10 @@ dependencies = [
  "glutin-winit",
  "log",
  "raw-window-handle",
- "render_derive",
  "time",
  "tracing",
  "tracing-subscriber",
+ "transform_derive",
  "winit",
  "winit_input_helper",
 ]
@@ -1133,15 +1133,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "render_derive"
-version = "0.1.0"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 1.0.109",
-]
-
-[[package]]
 name = "rustix"
 version = "0.38.44"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1502,6 +1493,15 @@ dependencies = [
  "time",
  "tracing-core",
  "tracing-log",
+]
+
+[[package]]
+name = "transform_derive"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
 ]
 
 [[package]]
