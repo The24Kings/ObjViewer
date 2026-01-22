@@ -14,6 +14,29 @@ pub struct Shader {
     destroyed: bool,
 }
 
+// Create a basic loaded object shader
+#[macro_export]
+macro_rules! loaded_shader {
+    ($gl:expr) => {{
+        let mut shader = crate::graphics::Shader::new($gl.clone());
+        shader
+            .add(
+                glow::FRAGMENT_SHADER,
+                include_str!("../../shaders/loaded_obj.frag"),
+            )
+            .add(
+                glow::VERTEX_SHADER,
+                include_str!("../../shaders/loaded_obj.vert"),
+            )
+            .link();
+
+        shader.add_attribute("i_position");
+        shader.add_attribute("i_color");
+
+        shader
+    }};
+}
+
 #[allow(dead_code)]
 impl Shader {
     pub fn new(renderer: Rc<Context>) -> Self {

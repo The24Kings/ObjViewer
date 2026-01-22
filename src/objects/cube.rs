@@ -1,8 +1,10 @@
-use crate::game::{Material, Mesh, Renderable};
+use crate::game::{Material, Mesh, Renderable, Transform};
+use glam::Mat4;
 
 pub struct Cube {
     pub material: Material,
     pub mesh: Mesh,
+    pub transform: Transform,
 }
 
 impl Renderable for Cube {
@@ -12,6 +14,16 @@ impl Renderable for Cube {
 
     fn mesh(&self) -> &Mesh {
         &self.mesh
+    }
+
+    fn model_matrix(&self) -> Mat4 {
+        self.transform.get_view_matrix()
+    }
+
+    fn animate(&mut self, delta: f32) {
+        // Spin
+        let rotation = glam::Quat::from_rotation_y(0.5 * delta as f32);
+        self.transform.rotation = rotation * self.transform.rotation;
     }
 }
 
@@ -26,7 +38,11 @@ impl Cube {
             indices,
         };
 
-        Self { material, mesh }
+        Self {
+            material,
+            mesh,
+            transform: Transform::default(),
+        }
     }
 
     /// Simple translation of the cube by modifying its vertex positions

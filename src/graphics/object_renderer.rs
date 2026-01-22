@@ -1,13 +1,12 @@
 use glam::Mat4;
 use glow::Context;
-use limited_gl::gl_check_error;
 use std::rc::Rc;
 
 use crate::game::Renderable;
 
 pub struct ObjectRenderer {
     gl: Rc<Context>,
-    render_targets: Vec<Box<dyn Renderable>>,
+    pub render_targets: Vec<Box<dyn Renderable>>,
 }
 
 #[allow(dead_code)]
@@ -23,9 +22,14 @@ impl ObjectRenderer {
         self.render_targets.push(Box::new(renderable));
     }
 
-    pub fn update(&self) {}
+    pub fn update(&mut self, dt: f32) {
+        // Animation and other updates would go here
+        for renderable in &mut self.render_targets {
+            renderable.animate(dt);
+        }
+    }
 
-    pub fn draw(&mut self, vp: &Mat4) {
+    pub fn draw(&mut self, pv: &Mat4) {
         for renderable in &self.render_targets {
             let material = renderable.material();
             let mesh = renderable.mesh();
@@ -33,9 +37,10 @@ impl ObjectRenderer {
             material.apply(&self.gl);
 
             // Set uniforms
-            material.shader.setUniform4fm("vp", vp);
-
-            gl_check_error!(&self.gl);
+            material.shader.setUniform4fm("vp", pv);
+            material
+                .shader
+                .setUniform4fm("model", &renderable.model_matrix());
 
             // Draw mesh
             mesh.draw(&self.gl);

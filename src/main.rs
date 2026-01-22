@@ -26,8 +26,8 @@ pub mod graphics;
 pub mod objects;
 pub mod window;
 
-const WIDTH: u32 = 800;
-const HEIGHT: u32 = 600;
+const WIDTH: u32 = 1920;
+const HEIGHT: u32 = 1080;
 
 const FPS: u32 = 60;
 
@@ -60,7 +60,7 @@ impl Default for App {
 }
 
 impl ApplicationHandler for App {
-    fn new_events(&mut self, _eventLoop: &ActiveEventLoop, cause: StartCause) {
+    fn new_events(&mut self, _event_loop: &ActiveEventLoop, cause: StartCause) {
         self.input.step();
 
         self.wait_cancelled = match cause {
@@ -69,7 +69,7 @@ impl ApplicationHandler for App {
         }
     }
 
-    fn resumed(&mut self, eventLoop: &ActiveEventLoop) {
+    fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         if self.state.is_some() {
             return;
         }
@@ -82,7 +82,7 @@ impl ApplicationHandler for App {
         let displayBuilder = DisplayBuilder::new().with_window_attributes(Some(attributes));
 
         let (window, glConfig) = displayBuilder
-            .build(eventLoop, template, |configs| {
+            .build(event_loop, template, |configs| {
                 configs
                     .reduce(|accum, config| {
                         if config.num_samples() > accum.num_samples() {
@@ -135,7 +135,7 @@ impl ApplicationHandler for App {
         });
     }
 
-    fn window_event(&mut self, eventLoop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
+    fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
         self.input.process_window_event(&event);
         match event {
             WindowEvent::Resized(size) => {
@@ -146,7 +146,7 @@ impl ApplicationHandler for App {
             }
             WindowEvent::CloseRequested => {
                 info!("The close button was pressed; stopping");
-                eventLoop.exit();
+                event_loop.exit();
             }
             WindowEvent::RedrawRequested => {
                 if let Some(ref mut state) = self.state {
@@ -158,34 +158,38 @@ impl ApplicationHandler for App {
         }
     }
 
-    fn device_event(&mut self, _eventLoop: &ActiveEventLoop, _id: DeviceId, event: DeviceEvent) {
+    fn device_event(&mut self, _event_loop: &ActiveEventLoop, _id: DeviceId, event: DeviceEvent) {
         self.input.process_device_event(&event);
     }
 
-    fn about_to_wait(&mut self, eventLoop: &ActiveEventLoop) {
+    fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
         self.input.end_step();
+
+        if let Some(ref mut state) = self.state {
+            let dt = self.instant.elapsed().as_secs_f32();
+            state.view_port.handle_input(dt, &self.input, event_loop);
+        }
 
         if self.request_redraw && !self.wait_cancelled {
             self.window.as_ref().unwrap().request_redraw();
             self.request_redraw = false;
 
-            let dt = self.instant.elapsed().as_secs_f64();
-            // info!("Delta time: {}s", dt);
+            let dt = self.instant.elapsed().as_secs_f32();
             if let Some(ref mut state) = self.state {
-                state.view_port.update(dt, &self.input, eventLoop);
+                state.view_port.update(dt);
             }
         }
 
         if !self.wait_cancelled {
-            eventLoop.set_control_flow(ControlFlow::WaitUntil(
-                Instant::now() + Duration::from_secs_f64(1.0 / FPS as f64),
+            self.instant = Instant::now();
+            event_loop.set_control_flow(ControlFlow::WaitUntil(
+                self.instant + Duration::from_secs_f64(1.0 / FPS as f64),
             ));
             self.request_redraw = true;
-            self.instant = Instant::now();
         }
     }
 
-    fn exiting(&mut self, _eventLoop: &ActiveEventLoop) {
+    fn exiting(&mut self, _event_loop: &ActiveEventLoop) {
         // if let Some(ref mut state) = self.state {
         //     state.view_port.destroy();
         // }
@@ -208,8 +212,8 @@ fn main() {
         .compact()
         .init();
 
-    let eventLoop = EventLoop::new().unwrap();
-    eventLoop
+    let event_loop = EventLoop::new().unwrap();
+    event_loop
         .run_app(&mut App::default())
         .expect("Failed to run event loop");
 }

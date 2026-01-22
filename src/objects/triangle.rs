@@ -13,6 +13,10 @@ impl Renderable for Triangle {
     fn mesh(&self) -> &Mesh {
         &self.mesh
     }
+
+    fn animate(&mut self, _dt: f32) {
+        // No animation for the triangle
+    }
 }
 
 impl Triangle {

@@ -1,5 +1,6 @@
 use glam::{Mat4, Quat, Vec3};
-use transform_derive::with_transform;
+
+use crate::game::Transform;
 
 #[derive(Default)]
 pub struct Frustum {
@@ -13,19 +14,25 @@ impl Frustum {
         Self { near, far, fov }
     }
 
-    fn zoom(&mut self, yoffset: f32) {
+    pub fn zoom(&mut self, yoffset: f32) {
         self.fov += yoffset;
         self.fov = self.fov.clamp(1.0, 65.0);
     }
 }
 
-#[with_transform]
+pub enum Projection {
+    Perspective(f32),
+    Orthographic(f32, f32, f32, f32),
+}
+
 #[derive(Default)]
 pub struct Camera {
     pub frustum: Frustum,
+    pub transform: Transform,
     pub pitch: f32,
     pub yaw: f32,
-    pub sensitivity: f32,
+    sensitivity: f32,
+    constrain_pitch: f32,
 }
 
 impl Camera {
@@ -37,23 +44,76 @@ impl Camera {
             pitch: 0.0,
             yaw: 0.0,
             sensitivity: 0.08,
+            constrain_pitch: 89.0,
             ..Default::default()
         }
     }
 
+    pub fn turn(&mut self, xoffset: f32, yoffset: f32) {
+        self.yaw += xoffset * self.sensitivity;
+        self.pitch -= yoffset * self.sensitivity;
+
+        // Constrain and normalize angles
+        self.yaw = self.yaw % 360.0;
+        self.pitch = self
+            .pitch
+            .clamp(-self.constrain_pitch, self.constrain_pitch);
+
+        self.update_local_vectors();
+    }
+
+    pub fn update_local_vectors(&mut self) {
+        let front = Vec3 {
+            x: self.yaw.to_radians().cos() * self.pitch.to_radians().cos(),
+            y: self.pitch.to_radians().sin(),
+            z: self.yaw.to_radians().sin() * self.pitch.to_radians().cos(),
+        };
+        self.transform.local_front = front;
+        self.transform.local_right = self.transform.local_front.cross(Vec3::Y).normalize();
+        self.transform.local_up = self
+            .transform
+            .local_right
+            .cross(self.transform.local_front)
+            .normalize();
+    }
+
     fn angle_front(&self) -> Quat {
-        Quat::from_axis_angle(Vec3::new(1.0, 0.0, 0.0), self.pitch.to_radians())
+        Quat::from_axis_angle(Vec3::X, self.pitch.to_radians())
     }
 
     fn angle_up(&self) -> Quat {
-        Quat::from_axis_angle(Vec3::new(0.0, 1.0, 0.0), self.yaw.to_radians())
+        Quat::from_axis_angle(Vec3::Y, self.yaw.to_radians())
     }
 
-    pub fn getCameraRotation(&self) -> Mat4 {
+    pub fn get_camera_rotation_matrix(&self) -> Mat4 {
         Mat4::from_quat(self.angle_front() * self.angle_up())
     }
 
-    pub fn getViewMatrix(&self) -> Mat4 {
-        self.getCameraRotation() * self.get_position_matrix() // TODO: Change to the actual camera position (needs traits)
+    pub fn get_camera_view_matrix(&self) -> Mat4 {
+        self.get_camera_rotation_matrix() * self.transform.get_position_matrix()
+    }
+
+    pub fn get_camera_world_matrix(&self) -> Mat4 {
+        self.transform.get_position_matrix() * self.get_camera_rotation_matrix()
+    }
+
+    pub fn get_camera_projection_matrix(&self, projection: Projection) -> Mat4 {
+        let fov = self.frustum.fov;
+        match projection {
+            Projection::Perspective(aspect) => Mat4::perspective_rh(
+                fov.to_radians(),
+                aspect,
+                self.frustum.near,
+                self.frustum.far,
+            ),
+            Projection::Orthographic(left, right, bottom, top) => Mat4::orthographic_rh(
+                left * fov,
+                right * fov,
+                bottom * fov,
+                top * fov,
+                self.frustum.near,
+                self.frustum.far,
+            ),
+        }
     }
 }
