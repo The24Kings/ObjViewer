@@ -42,12 +42,13 @@ impl Renderable for Cube {
 
 impl Cube {
     pub fn new(material: Material) -> Self {
-        let (vertices, indices) = Self::data();
+        let (vertices, normals, indices) = Self::data();
         let mesh = Mesh {
             vao: None,
             vbo: None,
             ibo: None,
             vertices,
+            normals: Some(normals),
             indices,
         };
 
@@ -67,13 +68,16 @@ impl Cube {
         }
     }
 
-    fn data() -> (Vec<f32>, Vec<u32>) {
+    fn data() -> (Vec<f32>, Vec<f32>, Vec<u32>) {
         let mut vertices: Vec<f32> = Vec::with_capacity(24 * 6);
+        let mut normals: Vec<f32> = Vec::with_capacity(24 * 3);
         let mut indices: Vec<u32> = Vec::with_capacity(36);
 
         // Helper to push a face (4 verts, color, and 6 indices)
         let mut push_face = |positions: &[(f32, f32, f32)], color: (f32, f32, f32)| {
             let base = (vertices.len() / 6) as u32;
+
+            // push vertex data (position + color)
             for &(x, y, z) in positions.iter() {
                 vertices.push(x);
                 vertices.push(y);
@@ -82,6 +86,35 @@ impl Cube {
                 vertices.push(color.1);
                 vertices.push(color.2);
             }
+
+            // compute face normal from first three vertices
+            let (x0, y0, z0) = positions[0];
+            let (x1, y1, z1) = positions[1];
+            let (x2, y2, z2) = positions[2];
+            let ux = x1 - x0;
+            let uy = y1 - y0;
+            let uz = z1 - z0;
+            let vx = x2 - x0;
+            let vy = y2 - y0;
+            let vz = z2 - z0;
+            // cross product u x v
+            let nx = uy * vz - uz * vy;
+            let ny = uz * vx - ux * vz;
+            let nz = ux * vy - uy * vx;
+            let len = (nx * nx + ny * ny + nz * nz).sqrt();
+            let (nx, ny, nz) = if len != 0.0 {
+                (nx / len, ny / len, nz / len)
+            } else {
+                (0.0, 0.0, 0.0)
+            };
+
+            // push same normal for each of the 4 face vertices
+            for _ in 0..4 {
+                normals.push(nx);
+                normals.push(ny);
+                normals.push(nz);
+            }
+
             indices.push(base);
             indices.push(base + 1);
             indices.push(base + 2);
@@ -164,6 +197,6 @@ impl Cube {
             cyan,
         );
 
-        (vertices, indices)
+        (vertices, normals, indices)
     }
 }

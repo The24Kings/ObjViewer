@@ -11,6 +11,7 @@ pub struct Mesh {
     pub vbo: Option<Buffer>,
     pub ibo: Option<Buffer>,
     pub vertices: Vec<f32>,
+    pub normals: Option<Vec<f32>>,
     pub indices: Vec<u32>,
 }
 
