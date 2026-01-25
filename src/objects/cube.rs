@@ -5,6 +5,8 @@ pub struct Cube {
     pub material: Material,
     pub mesh: Mesh,
     pub transform: Transform,
+    sin_wave: Vec<f32>,
+    sin_index: f32,
 }
 
 impl Renderable for Cube {
@@ -37,6 +39,31 @@ impl Renderable for Cube {
         let rotation_y = glam::Quat::from_rotation_y(0.5 * delta as f32);
         let rotation_x = glam::Quat::from_rotation_x(0.5 * delta as f32);
         self.transform.rotation = rotation_x * rotation_y * self.transform.rotation;
+
+        // Bobbing on Y axis using precomputed sin wave
+        let speed: f32 = 0.5; // cycles per second
+        let samples = self.sin_wave.len() as f32;
+
+        // advance index (wrap-around)
+        self.sin_index = (self.sin_index + delta * speed * samples) % samples;
+        let idx_f = self.sin_index;
+
+        // Get current and next index for lerp
+        let i0 = idx_f.floor() as usize % self.sin_wave.len();
+        let i1 = (i0 + 1) % self.sin_wave.len();
+
+        // Get the floating point (percentage between the two points)
+        let frac = idx_f - idx_f.floor();
+
+        // Interpolation
+        let s0 = self.sin_wave[i0];
+        let s1 = self.sin_wave[i1];
+        let sinv = s0 + (s1 - s0) * frac;
+
+        // Map sinv (-1..1) to desired Y range
+        let amplitude: f32 = 0.5; // max offset from center
+        let base_y: f32 = 0.0; // center position
+        self.transform.position.y = base_y + sinv * amplitude;
     }
 }
 
@@ -52,10 +79,21 @@ impl Cube {
             indices,
         };
 
+        // Generate Sin wave 0->2PI (one cycle)
+        let samples: usize = 256;
+        let sin_wave: Vec<f32> = (0..samples)
+            .map(|i| {
+                let t = i as f32 / (samples - 1) as f32 * std::f32::consts::TAU;
+                t.sin()
+            })
+            .collect();
+
         Self {
             material,
             mesh,
             transform: Transform::default(),
+            sin_wave,
+            sin_index: 0.0,
         }
     }
 

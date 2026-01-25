@@ -45,7 +45,7 @@ impl ViewPort {
 
         let mut object = Cube::new(material);
 
-        object.transform.position = Vec3::new(0.0, 0.0, 2.0);
+        // object.transform.position = Vec3::new(0.0, 0.0, 2.0);
 
         object
             .mesh
