@@ -10,7 +10,7 @@ use winit::window::{CursorGrabMode, Window};
 use winit_input_helper::WinitInputHelper;
 
 use crate::game::{Camera, Material, Projection};
-use crate::graphics::ObjectRenderer;
+use crate::graphics::{ObjectRenderer, Shader};
 use crate::loaded_shader;
 use crate::objects::Cube;
 
@@ -45,12 +45,13 @@ impl ViewPort {
 
         let mut object = Cube::new(material);
 
+        object.transform.position = Vec3::new(0.0, 0.0, 2.0);
+
         object
             .mesh
             .upload(&gl, shader_rc)
             .expect("Failed to upload triangle mesh");
 
-        // Add to renderer targets
         renderer.add_renderable(object);
 
         camera.transform.position = Vec3::new(0.0, 0.0, 5.0);
@@ -102,20 +103,6 @@ impl ViewPort {
         }
     }
 
-    fn normalize_cursor(&mut self, cursor: Vec2) -> Vec3 {
-        let size = self.window.inner_size();
-        // https://antongerdelan.net/opengl/raycasting.html
-        let ndc = vec2(
-            (2.0 * cursor.x) / size.width as f32 - 1.0,
-            1.0 - (2.0 * cursor.y) / size.height as f32,
-        );
-        let clip = vec4(ndc.x, ndc.y, -1.0, 1.0);
-        let mut eye = self.projection_matrix.inverse() * clip;
-        eye.z = -1.0;
-        eye.w = 0.0;
-        (self.view_matrix.inverse() * eye).truncate() //.normalize()
-    }
-
     pub fn handle_input(
         &mut self,
         _dt: f32,
@@ -133,10 +120,36 @@ impl ViewPort {
             self.capture_mouse = !self.capture_mouse;
             self.update_mouse_capture_state();
         }
+        if input.key_pressed(KeyCode::KeyR) {
+            info!("Reloading Shaders");
+
+            self.renderer.render_targets.iter_mut().for_each(|o| {
+                Shader::reload_shader(
+                    self.gl.clone(),
+                    o.material_mut().shader_mut(),
+                    "shaders/loaded_obj.vert",
+                    "shaders/loaded_obj.frag",
+                );
+            });
+        }
 
         if self.capture_mouse {
             self.handle_mouse(input);
         }
+    }
+
+    fn normalize_cursor(&mut self, cursor: Vec2) -> Vec3 {
+        let size = self.window.inner_size();
+        // https://antongerdelan.net/opengl/raycasting.html
+        let ndc = vec2(
+            (2.0 * cursor.x) / size.width as f32 - 1.0,
+            1.0 - (2.0 * cursor.y) / size.height as f32,
+        );
+        let clip = vec4(ndc.x, ndc.y, -1.0, 1.0);
+        let mut eye = self.projection_matrix.inverse() * clip;
+        eye.z = -1.0;
+        eye.w = 0.0;
+        (self.view_matrix.inverse() * eye).truncate()
     }
 
     fn handle_mouse(&mut self, input: &WinitInputHelper) {

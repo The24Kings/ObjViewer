@@ -1,5 +1,6 @@
 use glow::{Context, HasContext, NativeProgram, NativeShader};
 use limited_gl::gl_check_error;
+use std::io::{Error, ErrorKind};
 use std::rc::Rc;
 
 #[derive(Clone)]
@@ -16,7 +17,7 @@ impl ShaderSource {
         program: NativeProgram,
         shader_type: u32,
         source: &str,
-    ) -> Self {
+    ) -> Result<Self, Error> {
         unsafe {
             let shader = renderer
                 .create_shader(shader_type)
@@ -28,19 +29,22 @@ impl ShaderSource {
             gl_check_error!(&renderer);
 
             if !renderer.get_shader_compile_status(shader) {
-                let error = renderer.get_shader_info_log(shader);
-                panic!("Failed to compile shader: {}", error);
+                let e = renderer.get_shader_info_log(shader);
+                return Err(Error::new(
+                    ErrorKind::InvalidData,
+                    format!("Unable to compile shader: {e}"),
+                ));
             }
 
             renderer.attach_shader(program, shader);
 
             gl_check_error!(&renderer);
 
-            Self {
+            Ok(Self {
                 gl: renderer,
                 handle: shader,
                 destroyed: false,
-            }
+            })
         }
     }
 

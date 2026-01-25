@@ -14,6 +14,14 @@ impl Renderable for Triangle {
         &self.mesh
     }
 
+    fn material_mut(&mut self) -> &mut Material {
+        &mut self.material
+    }
+
+    fn mesh_mut(&mut self) -> &mut Mesh {
+        &mut self.mesh
+    }
+
     fn animate(&mut self, _dt: f32) {
         // No animation for the triangle
     }

@@ -12,6 +12,14 @@ impl Material {
         Self { shader }
     }
 
+    pub fn shader(&self) -> &Shader {
+        &self.shader
+    }
+
+    pub fn shader_mut(&mut self) -> &mut Shader {
+        Rc::get_mut(&mut self.shader).unwrap()
+    }
+
     pub fn apply(&self, gl: &Context) {
         self.shader.bind();
 

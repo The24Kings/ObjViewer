@@ -16,14 +16,27 @@ impl Renderable for Cube {
         &self.mesh
     }
 
+    fn material_mut(&mut self) -> &mut Material {
+        &mut self.material
+    }
+
+    fn mesh_mut(&mut self) -> &mut Mesh {
+        &mut self.mesh
+    }
+
     fn model_matrix(&self) -> Mat4 {
-        self.transform.get_view_matrix()
+        Mat4::from_scale_rotation_translation(
+            self.transform.scale,
+            self.transform.rotation,
+            self.transform.position,
+        )
     }
 
     fn animate(&mut self, delta: f32) {
         // Spin
-        let rotation = glam::Quat::from_rotation_y(0.5 * delta as f32);
-        self.transform.rotation = rotation * self.transform.rotation;
+        let rotation_y = glam::Quat::from_rotation_y(0.5 * delta as f32);
+        let rotation_x = glam::Quat::from_rotation_x(0.5 * delta as f32);
+        self.transform.rotation = rotation_x * rotation_y * self.transform.rotation;
     }
 }
 

@@ -22,8 +22,8 @@ impl ObjectRenderer {
         self.render_targets.push(Box::new(renderable));
     }
 
+    // Animation and other updates
     pub fn update(&mut self, dt: f32) {
-        // Animation and other updates would go here
         for renderable in &mut self.render_targets {
             renderable.animate(dt);
         }
@@ -37,7 +37,7 @@ impl ObjectRenderer {
             material.apply(&self.gl);
 
             // Set uniforms
-            material.shader.setUniform4fm("vp", pv);
+            material.shader.setUniform4fm("pv", pv);
             material
                 .shader
                 .setUniform4fm("model", &renderable.model_matrix());

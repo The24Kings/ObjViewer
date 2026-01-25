@@ -1,6 +1,5 @@
 use glam::{Mat4, Quat, Vec3};
 
-#[derive(Default)]
 pub struct Transform {
     pub position: Vec3,
     pub rotation: Quat,
@@ -8,6 +7,19 @@ pub struct Transform {
     pub local_front: Vec3,
     pub local_right: Vec3,
     pub local_up: Vec3,
+}
+
+impl Default for Transform {
+    fn default() -> Self {
+        Self {
+            position: Vec3::ZERO,
+            rotation: Quat::IDENTITY,
+            scale: Vec3::ONE,
+            local_front: Vec3::Z,
+            local_right: Vec3::X,
+            local_up: Vec3::Y,
+        }
+    }
 }
 
 impl Transform {

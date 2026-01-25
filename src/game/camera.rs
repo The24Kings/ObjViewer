@@ -99,6 +99,7 @@ impl Camera {
 
     pub fn get_camera_projection_matrix(&self, projection: Projection) -> Mat4 {
         let fov = self.frustum.fov;
+
         match projection {
             Projection::Perspective(aspect) => Mat4::perspective_rh(
                 fov.to_radians(),
@@ -106,14 +107,18 @@ impl Camera {
                 self.frustum.near,
                 self.frustum.far,
             ),
-            Projection::Orthographic(left, right, bottom, top) => Mat4::orthographic_rh(
-                left * fov,
-                right * fov,
-                bottom * fov,
-                top * fov,
-                self.frustum.near,
-                self.frustum.far,
-            ),
+            Projection::Orthographic(left, right, bottom, top) => {
+                let fov = fov / 16.0;
+
+                Mat4::orthographic_rh(
+                    left * fov,
+                    right * fov,
+                    bottom * fov,
+                    top * fov,
+                    self.frustum.near,
+                    self.frustum.far,
+                )
+            }
         }
     }
 }

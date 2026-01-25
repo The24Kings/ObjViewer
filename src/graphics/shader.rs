@@ -1,7 +1,10 @@
 use glam::{Mat4, Vec2, Vec3, Vec4};
 use glow::{Context, HasContext, NativeUniformLocation, Program};
 use limited_gl::gl_check_error;
-use std::{collections::HashMap, rc::Rc};
+use std::collections::HashMap;
+use std::fs;
+use std::rc::Rc;
+use tracing::error;
 
 use crate::graphics::ShaderSource;
 
@@ -37,6 +40,34 @@ macro_rules! loaded_shader {
     }};
 }
 
+// Create a basic loaded object shader
+#[macro_export]
+macro_rules! default_frag {
+    ($gl:expr, $handle:expr) => {{
+        ShaderSource::new(
+            $gl.clone(),
+            $handle,
+            glow::FRAGMENT_SHADER,
+            include_str!("../../shaders/default.frag"),
+        )
+        .expect("Default fragment shader failed")
+    }};
+}
+
+// Create a basic loaded object shader
+#[macro_export]
+macro_rules! default_vert {
+    ($gl:expr, $handle:expr) => {{
+        ShaderSource::new(
+            $gl.clone(),
+            $handle,
+            glow::VERTEX_SHADER,
+            include_str!("../../shaders/default.vert"),
+        )
+        .expect("Default vertex shader failed")
+    }};
+}
+
 #[allow(dead_code)]
 impl Shader {
     pub fn new(renderer: Rc<Context>) -> Self {
@@ -57,12 +88,22 @@ impl Shader {
 
     /// Compile Shader and attach to the program
     pub fn add(&mut self, shader_type: u32, source: &str) -> &mut Self {
-        self.sources.push(ShaderSource::new(
-            self.gl.clone(),
-            self.handle,
-            shader_type,
-            source,
-        ));
+        let src = ShaderSource::new(self.gl.clone(), self.handle, shader_type, source);
+
+        let src = match src {
+            Ok(src) => src,
+            Err(e) => {
+                error!("Failed to compiled shader, falling back to default: {e}");
+
+                match shader_type {
+                    glow::FRAGMENT_SHADER => default_frag!(self.gl.clone(), self.handle),
+                    glow::VERTEX_SHADER => default_vert!(self.gl.clone(), self.handle),
+                    _ => panic!("Unsupported default shader type"),
+                }
+            }
+        };
+
+        self.sources.push(src);
 
         self
     }
@@ -79,8 +120,8 @@ impl Shader {
             gl_check_error!(&self.gl);
 
             if !self.is_linked() {
-                let error = self.gl.get_program_info_log(self.handle);
-                panic!("Failed to link shader: {}", error);
+                let e = self.gl.get_program_info_log(self.handle);
+                panic!("Shader failed to link: {e}");
             }
         }
 
@@ -103,10 +144,43 @@ impl Shader {
         }
     }
 
+    //TODO: Add a fallback for when loading the shader fails, don't just unwrap Nothing and Crash
+    pub fn reload_shader(gl: Rc<Context>, shader: &mut Shader, vertex: &str, fragment: &str) {
+        let vert = fs::read_to_string(vertex).expect("Failed to read vertex shader!");
+        let frag = fs::read_to_string(fragment).expect("Failed to read fragment shader!");
+
+        let mut reloaded_shader = Shader::new(gl.clone());
+        reloaded_shader
+            .add(glow::VERTEX_SHADER, vert.as_str())
+            .add(glow::FRAGMENT_SHADER, frag.as_str())
+            .link();
+
+        reloaded_shader.add_attribute("i_position");
+        reloaded_shader.add_attribute("i_color");
+
+        if reloaded_shader.is_linked() {
+            let old_handle = shader.handle;
+            shader.handle = reloaded_shader.handle;
+
+            // Prevent the temporary `reloaded_shader` from deleting its program in Drop.
+            // Safety: The handle is passed to the Shader object which will delete the shader on the GPU when Dropped
+            // All sources are deleted after linking.
+            std::mem::forget(reloaded_shader);
+
+            unsafe {
+                gl.delete_program(old_handle);
+            }
+        }
+    }
+
     /// Add attribute to the shader
     pub fn add_attribute(&mut self, name: &'static str) {
-        self.attributes
-            .insert(name, self.getAttribLocation(name).unwrap());
+        let loc = self.getAttribLocation(name);
+
+        match loc {
+            Some(loc) => self.attributes.insert(name, loc),
+            None => panic!("Attribute not found"),
+        };
     }
 
     /// Remove shader from GPU memory
