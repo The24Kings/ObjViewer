@@ -227,6 +227,6 @@ impl ViewPort {
         // Pass projection * view (vp); each renderable supplies its own model matrix.
         self.view_matrix = self.camera.get_camera_view_matrix();
         let pv = self.projection_matrix * self.view_matrix;
-        self.renderer.draw(&pv);
+        self.renderer.draw(&pv, &self.camera);
     }
 }

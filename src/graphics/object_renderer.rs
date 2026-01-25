@@ -1,8 +1,8 @@
-use glam::Mat4;
+use glam::{Mat4, Vec3};
 use glow::Context;
 use std::rc::Rc;
 
-use crate::game::Renderable;
+use crate::game::{Camera, Renderable};
 
 pub struct ObjectRenderer {
     gl: Rc<Context>,
@@ -29,7 +29,7 @@ impl ObjectRenderer {
         }
     }
 
-    pub fn draw(&mut self, pv: &Mat4) {
+    pub fn draw(&mut self, model: &Mat4, camera: &Camera) {
         for renderable in &self.render_targets {
             let material = renderable.material();
             let mesh = renderable.mesh();
@@ -37,10 +37,19 @@ impl ObjectRenderer {
             material.apply(&self.gl);
 
             // Set uniforms
-            material.shader.setUniform4fm("pv", pv);
+            material.shader.setUniform4fm("pv", model);
             material
                 .shader
                 .setUniform4fm("model", &renderable.model_matrix());
+
+            material.shader.setUniform1f("ambient", 0.2);
+            material.shader.setUniform1f("specular", 0.5);
+            material //FIXME: Actually have a light source in the view_port
+                .shader
+                .setUniform3fv("light_pos", &Vec3::new(3.0, 5.0, 2.0));
+            material
+                .shader
+                .setUniform3fv("view_pos", &camera.transform.position);
 
             // Draw mesh
             mesh.draw(&self.gl);
