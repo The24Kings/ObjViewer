@@ -103,9 +103,10 @@ impl Cube {
 
         // Helper to push a face (4 verts, color, and 6 indices)
         let mut push_face = |positions: &[(f32, f32, f32)], color: (f32, f32, f32)| {
-            let base = (vertices.len() / 6) as u32;
+            // base vertex index (each vertex has 9 floats: pos(3), color(3), normal(3))
+            let base = (vertices.len() / 9) as u32;
 
-            // push vertex data (position + color)
+            // push vertex data (position + color + placeholder normal)
             for &(x, y, z) in positions.iter() {
                 vertices.push(x);
                 vertices.push(y);
@@ -113,34 +114,10 @@ impl Cube {
                 vertices.push(color.0);
                 vertices.push(color.1);
                 vertices.push(color.2);
-            }
-
-            // compute face normal from first three vertices
-            let (x0, y0, z0) = positions[0];
-            let (x1, y1, z1) = positions[1];
-            let (x2, y2, z2) = positions[2];
-            let ux = x1 - x0;
-            let uy = y1 - y0;
-            let uz = z1 - z0;
-            let vx = x2 - x0;
-            let vy = y2 - y0;
-            let vz = z2 - z0;
-            // cross product u x v
-            let nx = uy * vz - uz * vy;
-            let ny = uz * vx - ux * vz;
-            let nz = ux * vy - uy * vx;
-            let len = (nx * nx + ny * ny + nz * nz).sqrt();
-            let (nx, ny, nz) = if len != 0.0 {
-                (nx / len, ny / len, nz / len)
-            } else {
-                (0.0, 0.0, 0.0)
-            };
-
-            // push same normal for each of the 4 face vertices
-            for _ in 0..4 {
-                vertices.push(nx);
-                vertices.push(ny);
-                vertices.push(nz);
+                // placeholder normal (will accumulate later)
+                vertices.push(0.0);
+                vertices.push(0.0);
+                vertices.push(0.0);
             }
 
             indices.push(base);
@@ -224,6 +201,71 @@ impl Cube {
             ],
             cyan,
         );
+
+        // Recompute per-vertex normals by accumulating triangle normals.
+        let vertex_count = vertices.len() / 9;
+
+        // Extract positions into a separate array to avoid simultaneous mutable
+        // and immutable borrows of `vertices` while we accumulate normals.
+        let mut positions: Vec<[f32; 3]> = Vec::with_capacity(vertex_count);
+        for i in 0..vertex_count {
+            let off = i * 9;
+            positions.push([vertices[off], vertices[off + 1], vertices[off + 2]]);
+        }
+
+        let mut accum_normals: Vec<[f32; 3]> = vec![[0.0; 3]; vertex_count];
+
+        // Iterate triangles and accumulate face normals into vertex normals
+        for tri in indices.chunks(3) {
+            let i0 = tri[0] as usize;
+            let i1 = tri[1] as usize;
+            let i2 = tri[2] as usize;
+
+            let [x0, y0, z0] = positions[i0];
+            let [x1, y1, z1] = positions[i1];
+            let [x2, y2, z2] = positions[i2];
+
+            let ux = x1 - x0;
+            let uy = y1 - y0;
+            let uz = z1 - z0;
+            let vx = x2 - x0;
+            let vy = y2 - y0;
+            let vz = z2 - z0;
+
+            // face normal = u x v
+            let nx = uy * vz - uz * vy;
+            let ny = uz * vx - ux * vz;
+            let nz = ux * vy - uy * vx;
+
+            accum_normals[i0][0] += nx;
+            accum_normals[i0][1] += ny;
+            accum_normals[i0][2] += nz;
+
+            accum_normals[i1][0] += nx;
+            accum_normals[i1][1] += ny;
+            accum_normals[i1][2] += nz;
+
+            accum_normals[i2][0] += nx;
+            accum_normals[i2][1] += ny;
+            accum_normals[i2][2] += nz;
+        }
+
+        // Normalize and write back into vertices
+        for i in 0..vertex_count {
+            let nx = accum_normals[i][0];
+            let ny = accum_normals[i][1];
+            let nz = accum_normals[i][2];
+            let len = (nx * nx + ny * ny + nz * nz).sqrt();
+            let (nx, ny, nz) = if len != 0.0 {
+                (nx / len, ny / len, nz / len)
+            } else {
+                (0.0, 0.0, 0.0)
+            };
+            let off = i * 9 + 6;
+            vertices[off] = nx;
+            vertices[off + 1] = ny;
+            vertices[off + 2] = nz;
+        }
 
         (vertices, indices)
     }

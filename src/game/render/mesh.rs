@@ -33,7 +33,7 @@ impl Mesh {
                     0,
                 );
             } else {
-                gl.draw_arrays(glow::TRIANGLES, 0, (self.vertices.len() / 6) as i32);
+                gl.draw_arrays(glow::TRIANGLES, 0, (self.vertices.len() / 9) as i32); //TODO: Change this to use a Vertex Struct
             }
 
             gl.bind_vertex_array(None);
@@ -58,7 +58,7 @@ impl Mesh {
 
             gl_check_error!(gl);
 
-            let stride = (6 * size_of::<f32>()) as i32; // 3 for position, 3 for color
+            let stride = (9 * size_of::<f32>()) as i32; // 3 for position, 3 for color, 3 for normal TODO: Change this to use a Vertex Struct
             gl.vertex_array_vertex_buffer(vao, 0, Some(vbo), 0, stride);
 
             gl_check_error!(gl);
