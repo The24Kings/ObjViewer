@@ -2,7 +2,7 @@ use glam::{Mat4, Vec3};
 use glow::Context;
 use std::rc::Rc;
 
-use crate::game::{Camera, Renderable};
+use crate::{game::Camera, graphics::Renderable};
 
 pub struct ObjectRenderer {
     gl: Rc<Context>,

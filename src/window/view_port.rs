@@ -9,8 +9,8 @@ use winit::keyboard::KeyCode;
 use winit::window::{CursorGrabMode, Window};
 use winit_input_helper::WinitInputHelper;
 
-use crate::game::{Camera, Material, Projection};
-use crate::graphics::{ObjectRenderer, Shader};
+use crate::game::{Camera, Projection};
+use crate::graphics::{Material, ObjectRenderer, Shader};
 use crate::loaded_shader;
 use crate::objects::Cube;
 

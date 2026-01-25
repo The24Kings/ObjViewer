@@ -1,9 +1,9 @@
 pub mod material;
 pub mod mesh;
 
-use crate::game::Material;
-use crate::game::Mesh;
 use glam::Mat4;
+
+use crate::graphics::{Material, Mesh};
 
 pub trait Renderable {
     fn material(&self) -> &Material;

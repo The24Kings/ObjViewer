@@ -1,4 +1,4 @@
-use crate::game::{Material, Mesh, Renderable};
+use crate::graphics::{Material, Mesh, Renderable};
 
 pub struct Triangle {
     pub material: Material,

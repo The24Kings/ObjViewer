@@ -1,4 +1,7 @@
-use crate::game::{Material, Mesh, Renderable, Transform};
+use crate::{
+    game::Transform,
+    graphics::{Material, Mesh, Renderable},
+};
 use glam::Mat4;
 
 pub struct Cube {
