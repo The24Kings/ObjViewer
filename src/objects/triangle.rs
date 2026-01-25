@@ -41,7 +41,6 @@ impl Triangle {
             vbo: None,
             ibo: None,
             vertices,
-            normals: None,
             indices,
         };
 

@@ -50,7 +50,7 @@ impl ViewPort {
         object
             .mesh
             .upload(&gl, shader_rc)
-            .expect("Failed to upload triangle mesh");
+            .expect("Failed to upload mesh");
 
         renderer.add_renderable(object);
 

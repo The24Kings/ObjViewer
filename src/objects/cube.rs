@@ -69,13 +69,12 @@ impl Renderable for Cube {
 
 impl Cube {
     pub fn new(material: Material) -> Self {
-        let (vertices, normals, indices) = Self::data();
+        let (vertices, indices) = Self::data();
         let mesh = Mesh {
             vao: None,
             vbo: None,
             ibo: None,
             vertices,
-            normals: Some(normals),
             indices,
         };
 
@@ -97,18 +96,9 @@ impl Cube {
         }
     }
 
-    /// Simple translation of the cube by modifying its vertex positions
-    pub fn translate(&mut self, x: f32, y: f32, z: f32) {
-        for i in 0..self.mesh.vertices.len() / 6 {
-            self.mesh.vertices[i * 6 + 0] += x;
-            self.mesh.vertices[i * 6 + 1] += y;
-            self.mesh.vertices[i * 6 + 2] += z;
-        }
-    }
-
-    fn data() -> (Vec<f32>, Vec<f32>, Vec<u32>) {
-        let mut vertices: Vec<f32> = Vec::with_capacity(24 * 6);
-        let mut normals: Vec<f32> = Vec::with_capacity(24 * 3);
+    //TODO: Convert `vertices` to a Vertex Struct
+    fn data() -> (Vec<f32>, Vec<u32>) {
+        let mut vertices: Vec<f32> = Vec::with_capacity(9 * 6 * 4); // pos, color, normal - 6 faces * 4 points
         let mut indices: Vec<u32> = Vec::with_capacity(36);
 
         // Helper to push a face (4 verts, color, and 6 indices)
@@ -148,9 +138,9 @@ impl Cube {
 
             // push same normal for each of the 4 face vertices
             for _ in 0..4 {
-                normals.push(nx);
-                normals.push(ny);
-                normals.push(nz);
+                vertices.push(nx);
+                vertices.push(ny);
+                vertices.push(nz);
             }
 
             indices.push(base);
@@ -235,6 +225,6 @@ impl Cube {
             cyan,
         );
 
-        (vertices, normals, indices)
+        (vertices, indices)
     }
 }

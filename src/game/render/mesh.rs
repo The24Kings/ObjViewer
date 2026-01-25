@@ -11,7 +11,6 @@ pub struct Mesh {
     pub vbo: Option<Buffer>,
     pub ibo: Option<Buffer>,
     pub vertices: Vec<f32>,
-    pub normals: Option<Vec<f32>>,
     pub indices: Vec<u32>,
 }
 
@@ -90,6 +89,7 @@ impl Mesh {
                 let offset = match *name {
                     "i_position" => 0,
                     "i_color" => (3 * size_of::<f32>()) as u32,
+                    "i_normal" => (6 * size_of::<f32>()) as u32,
                     _ => {
                         return Err(format!("Unknown attribute name: {}", name));
                     }

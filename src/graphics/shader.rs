@@ -35,6 +35,7 @@ macro_rules! loaded_shader {
 
         shader.add_attribute("i_position");
         shader.add_attribute("i_color");
+        shader.add_attribute("i_normal");
 
         shader
     }};
@@ -157,6 +158,7 @@ impl Shader {
 
         reloaded_shader.add_attribute("i_position");
         reloaded_shader.add_attribute("i_color");
+        reloaded_shader.add_attribute("i_normal");
 
         if reloaded_shader.is_linked() {
             let old_handle = shader.handle;
@@ -179,7 +181,7 @@ impl Shader {
 
         match loc {
             Some(loc) => self.attributes.insert(name, loc),
-            None => panic!("Attribute not found"),
+            None => return, // panic!("Attribute not found")
         };
     }
 

@@ -1,6 +1,7 @@
 #version 460
 
 in vec3 f_color;
+in vec3 f_normal;
 
 out vec4 o_color;
 
