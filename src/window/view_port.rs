@@ -12,7 +12,7 @@ use winit_input_helper::WinitInputHelper;
 use crate::game::{Camera, Projection};
 use crate::graphics::{Material, ObjectRenderer, Shader};
 use crate::loaded_shader;
-use crate::objects::Cube;
+use crate::objects::{Cube, Triangle};
 
 pub struct ViewPort {
     window: Rc<Window>,
@@ -43,7 +43,7 @@ impl ViewPort {
         let shader_rc = Rc::new(loaded_shader!(gl.clone()));
         let material = Material::new(shader_rc.clone());
 
-        let mut object = Cube::new(material);
+        let mut object = Triangle::new(material);
 
         // object.transform.position = Vec3::new(0.0, 0.0, 2.0);
 

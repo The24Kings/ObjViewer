@@ -1,8 +1,10 @@
-use crate::graphics::{Material, Mesh, Renderable};
+use glam::Mat4;
+use crate::{game::Transform, graphics::{Material, Mesh, Renderable}, objects::calculate_normals};
 
 pub struct Triangle {
     pub material: Material,
     pub mesh: Mesh,
+    pub transform: Transform,
 }
 
 impl Renderable for Triangle {
@@ -22,19 +24,30 @@ impl Renderable for Triangle {
         &mut self.mesh
     }
 
-    fn animate(&mut self, _dt: f32) {
-        // No animation for the triangle
+    fn model_matrix(&self) -> Mat4 {
+        Mat4::from_scale_rotation_translation(
+            self.transform.scale,
+            self.transform.rotation,
+            self.transform.position,
+        )
+    }
+
+    fn animate(&mut self, dt: f32) {
+        let rotation_y = glam::Quat::from_rotation_y(0.5 * dt as f32);
+        self.transform.rotation = rotation_y * self.transform.rotation;
     }
 }
 
 impl Triangle {
     pub fn new(material: Material) -> Self {
-        let vertices: Vec<f32> = vec![
-            0.0, 0.5, 0.0, 1.0, 0.0, 0.0, // top (red)
-            -0.5, -0.5, 0.0, 0.0, 1.0, 0.0, // left (green)
-            0.5, -0.5, 0.0, 0.0, 0.0, 1.0, // right (blue)
+        let mut vertices: Vec<f32> = vec![
+            0.0, 0.5, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, // top (red)
+            -0.5, -0.5, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, // left (green)
+            0.5, -0.5, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, // right (blue)
         ];
         let indices: Vec<u32> = vec![0, 1, 2];
+
+        calculate_normals(&mut vertices, &indices);
 
         let mesh = Mesh {
             vao: None,
@@ -44,14 +57,6 @@ impl Triangle {
             indices,
         };
 
-        Self { material, mesh }
-    }
-
-    pub fn translate(&mut self, x: f32, y: f32, z: f32) {
-        for i in 0..self.mesh.vertices.len() / 6 {
-            self.mesh.vertices[i * 6 + 0] += x;
-            self.mesh.vertices[i * 6 + 1] += y;
-            self.mesh.vertices[i * 6 + 2] += z;
-        }
+        Self { material, mesh, transform: Transform::default() }
     }
 }
