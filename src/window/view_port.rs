@@ -12,7 +12,7 @@ use winit_input_helper::WinitInputHelper;
 use crate::game::{Camera, Projection};
 use crate::graphics::{Material, ObjectRenderer, Shader};
 use crate::loaded_shader;
-use crate::objects::{Cube, Triangle};
+use crate::objects::{Cube, Light};
 
 pub struct ViewPort {
     window: Rc<Window>,
@@ -40,16 +40,45 @@ impl ViewPort {
         let mut camera = Camera::new(0.1, 100.0);
         let mut renderer = ObjectRenderer::new(gl.clone()).unwrap();
 
-        let shader_rc = Rc::new(loaded_shader!(gl.clone()));
-        let material = Material::new(shader_rc.clone());
+        let light_shader = Rc::new({
+            let mut shader = crate::graphics::Shader::new(gl.clone());
+            shader
+                .add(
+                    glow::FRAGMENT_SHADER,
+                    include_str!("../../shaders/light_cube.frag"),
+                    "shaders/light_cube.frag",
+                )
+                .add(
+                    glow::VERTEX_SHADER,
+                    include_str!("../../shaders/light_cube.vert"),
+                    "shaders/light_cube.vert",
+                )
+                .link();
 
-        let mut object = Triangle::new(material);
+            shader.add_attribute("i_position");
 
-        // object.transform.position = Vec3::new(0.0, 0.0, 2.0);
+            shader
+        });
+        let light_material = Material::new(light_shader.clone());
 
+        let mut light = Light::new(light_material);
+        light
+            .mesh
+            .upload(&gl, light_shader)
+            .expect("Failed to upload mesh");
+
+        light.transform.position = Vec3::new(1.0, 1.0, 1.0);
+        light.transform.scale = Vec3::new(0.25, 0.25, 0.25);
+
+        renderer.add_renderable(light);
+
+        let obj_shader = Rc::new(loaded_shader!(gl.clone()));
+        let obj_material = Material::new(obj_shader.clone());
+
+        let mut object = Cube::new(obj_material);
         object
             .mesh
-            .upload(&gl, shader_rc)
+            .upload(&gl, obj_shader)
             .expect("Failed to upload mesh");
 
         renderer.add_renderable(object);
@@ -124,12 +153,27 @@ impl ViewPort {
             info!("Reloading Shaders");
 
             self.renderer.render_targets.iter_mut().for_each(|o| {
-                Shader::reload_shader(
-                    self.gl.clone(),
-                    o.material_mut().shader_mut(),
-                    "shaders/loaded_obj.vert",
-                    "shaders/loaded_obj.frag",
-                );
+                let to_reload: Vec<(u32, &str)> = o
+                    .material()
+                    .shader
+                    .sources
+                    .iter()
+                    .map(|s| (s.shader_type, s.filepath))
+                    .collect();
+
+                to_reload.chunks(2).for_each(|c| {
+                    let shader = o.material_mut().shader_mut();
+                    let mut vertex = "";
+                    let mut fragment = "";
+
+                    c.iter().for_each(|s| match s.0 {
+                        glow::VERTEX_SHADER => vertex = s.1,
+                        glow::FRAGMENT_SHADER => fragment = s.1,
+                        _ => {}
+                    });
+
+                    Shader::reload_shader(self.gl.clone(), shader, vertex, fragment);
+                });
             });
         }
 

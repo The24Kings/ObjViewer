@@ -6,7 +6,9 @@ use std::rc::Rc;
 #[derive(Clone)]
 pub(crate) struct ShaderSource {
     gl: Rc<Context>,
+    pub shader_type: u32,
     pub handle: NativeShader,
+    pub filepath: &'static str,
     destroyed: bool,
 }
 
@@ -17,6 +19,7 @@ impl ShaderSource {
         program: NativeProgram,
         shader_type: u32,
         source: &str,
+        filepath: &'static str,
     ) -> Result<Self, Error> {
         unsafe {
             let shader = renderer
@@ -42,7 +45,9 @@ impl ShaderSource {
 
             Ok(Self {
                 gl: renderer,
+                shader_type,
                 handle: shader,
+                filepath,
                 destroyed: false,
             })
         }

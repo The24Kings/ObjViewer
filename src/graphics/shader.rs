@@ -11,9 +11,9 @@ use crate::graphics::ShaderSource;
 #[derive(Clone)]
 pub struct Shader {
     gl: Rc<Context>,
-    pub handle: Program,
-    pub attributes: HashMap<&'static str, u32>, // Name and Location
-    sources: Vec<ShaderSource>,
+    pub(crate) handle: Program,
+    pub(crate) attributes: HashMap<&'static str, u32>, // Name and Location
+    pub(crate) sources: Vec<ShaderSource>,
     destroyed: bool,
 }
 
@@ -26,10 +26,12 @@ macro_rules! loaded_shader {
             .add(
                 glow::FRAGMENT_SHADER,
                 include_str!("../../shaders/loaded_obj.frag"),
+                "shaders/loaded_obj.frag",
             )
             .add(
                 glow::VERTEX_SHADER,
                 include_str!("../../shaders/loaded_obj.vert"),
+                "shaders/loaded_obj.vert",
             )
             .link();
 
@@ -50,6 +52,7 @@ macro_rules! default_frag {
             $handle,
             glow::FRAGMENT_SHADER,
             include_str!("../../shaders/default.frag"),
+            "shaders/default.frag",
         )
         .expect("Default fragment shader failed")
     }};
@@ -64,6 +67,7 @@ macro_rules! default_vert {
             $handle,
             glow::VERTEX_SHADER,
             include_str!("../../shaders/default.vert"),
+            "shaders/default.vert",
         )
         .expect("Default vertex shader failed")
     }};
@@ -88,8 +92,8 @@ impl Shader {
     }
 
     /// Compile Shader and attach to the program
-    pub fn add(&mut self, shader_type: u32, source: &str) -> &mut Self {
-        let src = ShaderSource::new(self.gl.clone(), self.handle, shader_type, source);
+    pub fn add(&mut self, shader_type: u32, source: &str, filepath: &'static str) -> &mut Self {
+        let src = ShaderSource::new(self.gl.clone(), self.handle, shader_type, source, filepath);
 
         let src = match src {
             Ok(src) => src,
@@ -146,14 +150,19 @@ impl Shader {
     }
 
     //TODO: Add a fallback for when loading the shader fails, don't just unwrap Nothing and Crash
-    pub fn reload_shader(gl: Rc<Context>, shader: &mut Shader, vertex: &str, fragment: &str) {
+    pub fn reload_shader(
+        gl: Rc<Context>,
+        shader: &mut Shader,
+        vertex: &'static str,
+        fragment: &'static str,
+    ) {
         let vert = fs::read_to_string(vertex).expect("Failed to read vertex shader!");
         let frag = fs::read_to_string(fragment).expect("Failed to read fragment shader!");
 
         let mut reloaded_shader = Shader::new(gl.clone());
         reloaded_shader
-            .add(glow::VERTEX_SHADER, vert.as_str())
-            .add(glow::FRAGMENT_SHADER, frag.as_str())
+            .add(glow::VERTEX_SHADER, vert.as_str(), vertex)
+            .add(glow::FRAGMENT_SHADER, frag.as_str(), fragment)
             .link();
 
         reloaded_shader.add_attribute("i_position");

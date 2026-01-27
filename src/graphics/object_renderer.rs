@@ -46,7 +46,7 @@ impl ObjectRenderer {
             material.shader.setUniform1f("specular", 0.5);
             material //FIXME: Actually have a light source in the view_port
                 .shader
-                .setUniform3fv("light_pos", &Vec3::new(3.0, 5.0, 2.0));
+                .setUniform3fv("light_pos", &Vec3::new(1.0, 1.0, 1.0));
             material
                 .shader
                 .setUniform3fv("view_pos", &camera.transform.position);

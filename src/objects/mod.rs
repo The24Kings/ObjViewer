@@ -1,8 +1,10 @@
 pub mod cube;
 pub mod triangle;
+pub mod light;
 
 pub use cube::Cube;
 pub use triangle::Triangle;
+pub use light::Light;
 
 pub fn calculate_normals(vertices: &mut Vec<f32>, indices: &Vec<u32>) {
     assert!(vertices.len() % 9 == 0);
