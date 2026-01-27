@@ -161,15 +161,21 @@ impl ViewPort {
                     .map(|s| (s.shader_type, s.filepath))
                     .collect();
 
+                let shader = o.material_mut().shader_mut();
+
                 to_reload.chunks(2).for_each(|c| {
-                    let shader = o.material_mut().shader_mut();
                     let mut vertex = "";
                     let mut fragment = "";
 
-                    c.iter().for_each(|s| match s.0 {
-                        glow::VERTEX_SHADER => vertex = s.1,
-                        glow::FRAGMENT_SHADER => fragment = s.1,
-                        _ => {}
+                    c.iter().for_each(|s| {
+                        let shader_type = s.0;
+                        let path = s.1;
+
+                        match shader_type {
+                            glow::VERTEX_SHADER => vertex = path,
+                            glow::FRAGMENT_SHADER => fragment = path,
+                            _ => panic!("Unsupported shader type"),
+                        }
                     });
 
                     Shader::reload_shader(self.gl.clone(), shader, vertex, fragment);

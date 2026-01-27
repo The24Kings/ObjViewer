@@ -37,10 +37,11 @@ impl Renderable for Light {
 
     fn animate(&mut self, dt: f32) {
         // Spin
+        let dt = dt * 5.0;
+
         let rotation_x = glam::Quat::from_rotation_x(0.5 * dt as f32);
-        let rotation_y = glam::Quat::from_rotation_y(0.5 * dt as f32);
         let rotation_z = glam::Quat::from_rotation_z(0.5 * dt as f32);
-        self.transform.rotation = rotation_x * rotation_y * -rotation_z * self.transform.rotation;
+        self.transform.rotation = rotation_x * rotation_z * self.transform.rotation;
     }
 }
 
