@@ -9,7 +9,6 @@ pub struct RenderManager {
     pub render_targets: Vec<Arc<Mutex<dyn Renderable>>>,
 }
 
-#[allow(dead_code)]
 impl RenderManager {
     pub fn new(gl: Arc<Context>) -> Result<Self, String> {
         Ok(Self {

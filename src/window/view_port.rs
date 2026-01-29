@@ -273,7 +273,7 @@ impl ViewPort {
 
     pub fn update(&mut self, dt: f32) {
         // Update physics before rendering
-        self.physics_manager.physics_update(dt);
+        self.physics_manager.update(dt);
         self.render_manager.update(dt);
     }
 
