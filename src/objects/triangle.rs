@@ -1,9 +1,9 @@
 use crate::{
     game::{Renderable, Transform},
-    graphics::{Material, Mesh},
+    graphics::{Material, Mesh, Vertex},
     objects::calculate_normals,
 };
-use glam::Mat4;
+use glam::{Mat4, Vec3};
 
 pub struct Triangle {
     pub material: Material,
@@ -44,10 +44,10 @@ impl Renderable for Triangle {
 
 impl Triangle {
     pub fn new(material: Material) -> Self {
-        let mut vertices: Vec<f32> = vec![
-            0.0, 0.5, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, // top (red)
-            -0.5, -0.5, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, // left (green)
-            0.5, -0.5, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, // right (blue)
+        let mut vertices: Vec<Vertex> = vec![
+            Vertex::with_color(Vec3::new(0.0, 0.5, 0.0), Vec3::new(1.0, 0.0, 0.0), Vec3::ZERO),   // top (red)
+            Vertex::with_color(Vec3::new(-0.5, -0.5, 0.0), Vec3::new(0.0, 1.0, 0.0), Vec3::ZERO), // left (green)
+            Vertex::with_color(Vec3::new(0.5, -0.5, 0.0), Vec3::new(0.0, 0.0, 1.0), Vec3::ZERO),  // right (blue)
         ];
         let indices: Vec<u32> = vec![0, 1, 2];
 

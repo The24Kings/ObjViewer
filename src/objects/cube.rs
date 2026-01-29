@@ -1,6 +1,6 @@
 use crate::{
     game::{GameObject, Physical, Renderable, Transform},
-    graphics::{Material, Mesh},
+    graphics::{Material, Mesh, Vertex},
     objects::calculate_normals,
 };
 use glam::{Mat4, Vec3};
@@ -132,28 +132,17 @@ impl Cube {
         }
     }
 
-    //TODO: Convert `vertices` to a Vertex Struct
-    fn data() -> (Vec<f32>, Vec<u32>) {
-        let mut vertices: Vec<f32> = Vec::with_capacity(9 * 6 * 4); // pos, color, normal - 6 faces * 4 points
+    fn data() -> (Vec<Vertex>, Vec<u32>) {
+        let mut vertices: Vec<Vertex> = Vec::with_capacity(6 * 4); // 6 faces * 4 points
         let mut indices: Vec<u32> = Vec::with_capacity(36);
 
         // Helper to push a face (4 verts, color, and 6 indices)
-        let mut push_face = |positions: &[(f32, f32, f32)], color: (f32, f32, f32)| {
-            // base vertex index (each vertex has 9 floats: pos(3), color(3), normal(3))
-            let base = (vertices.len() / 9) as u32;
+        let mut push_face = |positions: &[Vec3], color: Vec3| {
+            let base = vertices.len() as u32;
 
             // push vertex data (position + color + placeholder normal)
-            for &(x, y, z) in positions.iter() {
-                vertices.push(x);
-                vertices.push(y);
-                vertices.push(z);
-                vertices.push(color.0);
-                vertices.push(color.1);
-                vertices.push(color.2);
-                // placeholder normal (will accumulate later)
-                vertices.push(0.0);
-                vertices.push(0.0);
-                vertices.push(0.0);
+            for &pos in positions.iter() {
+                vertices.push(Vertex::with_color(pos, color, Vec3::ZERO));
             }
 
             indices.push(base);
@@ -165,20 +154,20 @@ impl Cube {
         };
 
         // Colors per face
-        let red = (1.0, 0.0, 0.0);
-        let green = (0.0, 1.0, 0.0);
-        let blue = (0.0, 0.0, 1.0);
-        let yellow = (1.0, 1.0, 0.0);
-        let magenta = (1.0, 0.0, 1.0);
-        let cyan = (0.0, 1.0, 1.0);
+        let red = Vec3::new(1.0, 0.0, 0.0);
+        let green = Vec3::new(0.0, 1.0, 0.0);
+        let blue = Vec3::new(0.0, 0.0, 1.0);
+        let yellow = Vec3::new(1.0, 1.0, 0.0);
+        let magenta = Vec3::new(1.0, 0.0, 1.0);
+        let cyan = Vec3::new(0.0, 1.0, 1.0);
 
         // Front (+Z)
         push_face(
             &[
-                (-0.5, -0.5, 0.5),
-                (0.5, -0.5, 0.5),
-                (0.5, 0.5, 0.5),
-                (-0.5, 0.5, 0.5),
+                Vec3::new(-0.5, -0.5, 0.5),
+                Vec3::new(0.5, -0.5, 0.5),
+                Vec3::new(0.5, 0.5, 0.5),
+                Vec3::new(-0.5, 0.5, 0.5),
             ],
             red,
         );
@@ -186,10 +175,10 @@ impl Cube {
         // Back (-Z)
         push_face(
             &[
-                (0.5, -0.5, -0.5),
-                (-0.5, -0.5, -0.5),
-                (-0.5, 0.5, -0.5),
-                (0.5, 0.5, -0.5),
+                Vec3::new(0.5, -0.5, -0.5),
+                Vec3::new(-0.5, -0.5, -0.5),
+                Vec3::new(-0.5, 0.5, -0.5),
+                Vec3::new(0.5, 0.5, -0.5),
             ],
             green,
         );
@@ -197,10 +186,10 @@ impl Cube {
         // Left (-X)
         push_face(
             &[
-                (-0.5, -0.5, -0.5),
-                (-0.5, -0.5, 0.5),
-                (-0.5, 0.5, 0.5),
-                (-0.5, 0.5, -0.5),
+                Vec3::new(-0.5, -0.5, -0.5),
+                Vec3::new(-0.5, -0.5, 0.5),
+                Vec3::new(-0.5, 0.5, 0.5),
+                Vec3::new(-0.5, 0.5, -0.5),
             ],
             blue,
         );
@@ -208,10 +197,10 @@ impl Cube {
         // Right (+X)
         push_face(
             &[
-                (0.5, -0.5, 0.5),
-                (0.5, -0.5, -0.5),
-                (0.5, 0.5, -0.5),
-                (0.5, 0.5, 0.5),
+                Vec3::new(0.5, -0.5, 0.5),
+                Vec3::new(0.5, -0.5, -0.5),
+                Vec3::new(0.5, 0.5, -0.5),
+                Vec3::new(0.5, 0.5, 0.5),
             ],
             yellow,
         );
@@ -219,10 +208,10 @@ impl Cube {
         // Top (+Y)
         push_face(
             &[
-                (-0.5, 0.5, 0.5),
-                (0.5, 0.5, 0.5),
-                (0.5, 0.5, -0.5),
-                (-0.5, 0.5, -0.5),
+                Vec3::new(-0.5, 0.5, 0.5),
+                Vec3::new(0.5, 0.5, 0.5),
+                Vec3::new(0.5, 0.5, -0.5),
+                Vec3::new(-0.5, 0.5, -0.5),
             ],
             magenta,
         );
@@ -230,10 +219,10 @@ impl Cube {
         // Bottom (-Y)
         push_face(
             &[
-                (-0.5, -0.5, -0.5),
-                (0.5, -0.5, -0.5),
-                (0.5, -0.5, 0.5),
-                (-0.5, -0.5, 0.5),
+                Vec3::new(-0.5, -0.5, -0.5),
+                Vec3::new(0.5, -0.5, -0.5),
+                Vec3::new(0.5, -0.5, 0.5),
+                Vec3::new(-0.5, -0.5, 0.5),
             ],
             cyan,
         );

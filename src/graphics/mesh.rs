@@ -1,16 +1,17 @@
 use bytemuck::cast_slice;
 use glow::{Buffer, Context, HasContext, VertexArray};
 use limited_gl::gl_check_error;
-use std::mem::size_of;
+use std::mem::{offset_of, size_of};
 use std::sync::Arc;
 
-use crate::graphics::Shader;
+use crate::graphics::{Shader, VEC3};
+use crate::graphics::{VEC2, Vertex};
 
 pub struct Mesh {
     pub vao: Option<VertexArray>,
     pub vbo: Option<Buffer>,
     pub ibo: Option<Buffer>,
-    pub vertices: Vec<f32>,
+    pub vertices: Vec<Vertex>,
     pub indices: Vec<u32>,
 }
 
@@ -33,7 +34,7 @@ impl Mesh {
                     0,
                 );
             } else {
-                gl.draw_arrays(glow::TRIANGLES, 0, (self.vertices.len() / 9) as i32); //TODO: Change this to use a Vertex Struct
+                gl.draw_arrays(glow::TRIANGLES, 0, self.vertices.len() as i32);
             }
 
             gl.bind_vertex_array(None);
@@ -58,7 +59,7 @@ impl Mesh {
 
             gl_check_error!(gl);
 
-            let stride = (9 * size_of::<f32>()) as i32; // 3 for position, 3 for color, 3 for normal TODO: Change this to use a Vertex Struct
+            let stride = size_of::<Vertex>() as i32;
             gl.vertex_array_vertex_buffer(vao, 0, Some(vbo), 0, stride);
 
             gl_check_error!(gl);
@@ -86,15 +87,23 @@ impl Mesh {
 
             // Setup vertex attributes
             for (name, loc) in &shader.attributes {
-                let offset = match *name {
-                    "i_position" => 0,
-                    "i_color" => (3 * size_of::<f32>()) as u32,
-                    "i_normal" => (6 * size_of::<f32>()) as u32,
+                let (offset, size) = match *name {
+                    "i_position" => (offset_of!(Vertex, position), VEC3),
+                    "i_color" => (offset_of!(Vertex, color), VEC3),
+                    "i_normal" => (offset_of!(Vertex, normal), VEC3),
+                    "i_tex_coords" => (offset_of!(Vertex, tex_coords), VEC2),
                     _ => {
                         return Err(format!("Unknown attribute name: {}", name));
                     }
                 };
-                gl.vertex_array_attrib_format_f32(vao, *loc, 3, glow::FLOAT, false, offset);
+                gl.vertex_array_attrib_format_f32(
+                    vao,
+                    *loc,
+                    size,
+                    glow::FLOAT,
+                    false,
+                    offset as u32,
+                );
                 gl.vertex_array_attrib_binding_f32(vao, *loc, 0);
                 gl.enable_vertex_array_attrib(vao, *loc);
                 gl_check_error!(gl);
