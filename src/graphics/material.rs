@@ -1,14 +1,14 @@
 use glow::{Context, HasContext};
-use std::rc::Rc;
+use std::sync::Arc;
 
 use crate::graphics::Shader;
 
 pub struct Material {
-    pub shader: Rc<Shader>,
+    pub shader: Arc<Shader>,
 }
 
 impl Material {
-    pub fn new(shader: Rc<Shader>) -> Self {
+    pub fn new(shader: Arc<Shader>) -> Self {
         Self { shader }
     }
 
@@ -17,7 +17,7 @@ impl Material {
     }
 
     pub fn shader_mut(&mut self) -> &mut Shader {
-        Rc::get_mut(&mut self.shader).unwrap()
+        Arc::get_mut(&mut self.shader).unwrap()
     }
 
     pub fn apply(&self, gl: &Context) {

@@ -1,6 +1,6 @@
 use crate::{
-    game::Transform,
-    graphics::{Material, Mesh, Renderable},
+    game::{Renderable, Transform},
+    graphics::{Material, Mesh},
 };
 use glam::Mat4;
 

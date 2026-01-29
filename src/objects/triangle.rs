@@ -1,5 +1,9 @@
+use crate::{
+    game::{Renderable, Transform},
+    graphics::{Material, Mesh},
+    objects::calculate_normals,
+};
 use glam::Mat4;
-use crate::{game::Transform, graphics::{Material, Mesh, Renderable}, objects::calculate_normals};
 
 pub struct Triangle {
     pub material: Material,
@@ -57,6 +61,10 @@ impl Triangle {
             indices,
         };
 
-        Self { material, mesh, transform: Transform::default() }
+        Self {
+            material,
+            mesh,
+            transform: Transform::default(),
+        }
     }
 }

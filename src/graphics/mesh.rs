@@ -2,7 +2,7 @@ use bytemuck::cast_slice;
 use glow::{Buffer, Context, HasContext, VertexArray};
 use limited_gl::gl_check_error;
 use std::mem::size_of;
-use std::rc::Rc;
+use std::sync::Arc;
 
 use crate::graphics::Shader;
 
@@ -44,7 +44,7 @@ impl Mesh {
         self.vao.is_some() && self.vbo.is_some()
     }
 
-    pub fn upload(&mut self, gl: &Context, shader: Rc<Shader>) -> Result<(), String> {
+    pub fn upload(&mut self, gl: &Context, shader: Arc<Shader>) -> Result<(), String> {
         unsafe {
             let vao = gl
                 .create_vertex_array()

@@ -3,14 +3,14 @@ use glow::{Context, HasContext, NativeUniformLocation, Program};
 use limited_gl::gl_check_error;
 use std::collections::HashMap;
 use std::fs;
-use std::rc::Rc;
+use std::sync::Arc;
 use tracing::error;
 
 use crate::graphics::ShaderSource;
 
 #[derive(Clone)]
 pub struct Shader {
-    gl: Rc<Context>,
+    gl: Arc<Context>,
     pub(crate) handle: Program,
     pub(crate) attributes: HashMap<&'static str, u32>, // Name and Location
     pub(crate) sources: Vec<ShaderSource>,
@@ -75,7 +75,7 @@ macro_rules! default_vert {
 
 #[allow(dead_code)]
 impl Shader {
-    pub fn new(renderer: Rc<Context>) -> Self {
+    pub fn new(renderer: Arc<Context>) -> Self {
         unsafe {
             let program = renderer.create_program().expect("Failed to create program");
 
@@ -151,7 +151,7 @@ impl Shader {
 
     //TODO: Add a fallback for when loading the shader fails, don't just unwrap Nothing and Crash
     pub fn reload_shader(
-        gl: Rc<Context>,
+        gl: Arc<Context>,
         shader: &mut Shader,
         vertex: &'static str,
         fragment: &'static str,

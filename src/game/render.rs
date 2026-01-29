@@ -1,11 +1,10 @@
-pub mod material;
-pub mod mesh;
-
 use glam::Mat4;
 
 use crate::graphics::{Material, Mesh};
 
-pub trait Renderable {
+/// Trait for objects that can be rendered.
+/// Implement this for any object that has a mesh and material.
+pub trait Renderable: Send + Sync {
     fn material(&self) -> &Material;
     fn mesh(&self) -> &Mesh;
 

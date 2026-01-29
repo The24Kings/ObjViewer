@@ -1,3 +1,21 @@
+//! Game objects module.
+//!
+//! This module contains all renderable and physical objects in the scene.
+//!
+//! ## Architecture Note
+//!
+//! The current trait-based approach (`Renderable`, `Physical`, `GameObject`) is designed
+//! for learning OpenGL fundamentals and understanding how rendering/physics systems interact.
+//!
+//! If the project grows to have many objects with varied components, consider migrating to
+//! an Entity-Component-System (ECS) architecture using libraries like:
+//! - `hecs` - A fast, minimal ECS library
+//! - `bevy_ecs` - Bevy's ECS, usable standalone
+//! - `specs` - Parallel ECS with good Rust integration
+//!
+//! ECS provides better cache locality, easier composition, and more flexible entity management
+//! at the cost of a steeper learning curve.
+
 pub mod cube;
 pub mod triangle;
 pub mod light;

@@ -1,7 +1,7 @@
 use glam::{Mat4, Vec2, Vec3, vec2, vec4};
 use glow::{Context, HasContext};
 use log::info;
-use std::rc::Rc;
+use std::sync::{Arc, Mutex};
 use winit::dpi::PhysicalPosition;
 use winit::event::MouseButton;
 use winit::event_loop::ActiveEventLoop;
@@ -9,25 +9,26 @@ use winit::keyboard::KeyCode;
 use winit::window::{CursorGrabMode, Window};
 use winit_input_helper::WinitInputHelper;
 
-use crate::game::{Camera, Projection};
-use crate::graphics::{Material, ObjectRenderer, Shader};
+use crate::game::{Camera, PhysicsManager, Projection, RenderManager};
+use crate::graphics::{Material, Shader};
 use crate::loaded_shader;
 use crate::objects::{Cube, Light};
 
 pub struct ViewPort {
-    window: Rc<Window>,
-    gl: Rc<Context>,
+    window: Arc<Window>,
+    gl: Arc<Context>,
     camera: Camera,
     enable_2d: bool,
     capture_mouse: bool,
     last_mouse_pos: Vec2,
-    renderer: ObjectRenderer,
+    render_manager: RenderManager,
+    physics_manager: PhysicsManager,
     projection_matrix: Mat4,
     view_matrix: Mat4,
 }
 
 impl ViewPort {
-    pub fn new(window: Rc<Window>, gl: Rc<Context>, (_width, _height): (u32, u32)) -> Self {
+    pub fn new(window: Arc<Window>, gl: Arc<Context>, (_width, _height): (u32, u32)) -> Self {
         unsafe {
             let size = window.inner_size();
             gl.viewport(0, 0, size.width as i32, size.height as i32);
@@ -38,9 +39,10 @@ impl ViewPort {
         }
 
         let mut camera = Camera::new(0.1, 100.0);
-        let mut renderer = ObjectRenderer::new(gl.clone()).unwrap();
+        let mut renderer = RenderManager::new(gl.clone()).unwrap();
+        let mut physics_manager = PhysicsManager::new();
 
-        let light_shader = Rc::new({
+        let light_shader = Arc::new({
             let mut shader = crate::graphics::Shader::new(gl.clone());
             shader
                 .add(
@@ -70,18 +72,21 @@ impl ViewPort {
         light.transform.position = Vec3::new(1.0, 1.0, 1.0);
         light.transform.scale = Vec3::new(0.25, 0.25, 0.25);
 
+        let light = Arc::new(Mutex::new(light));
         renderer.add_renderable(light);
 
-        let obj_shader = Rc::new(loaded_shader!(gl.clone()));
+        let obj_shader = Arc::new(loaded_shader!(gl.clone()));
         let obj_material = Material::new(obj_shader.clone());
 
-        let mut object = Cube::new(obj_material);
-        object
-            .mesh
+        let mut cube = Cube::new(obj_material);
+        cube.mesh
             .upload(&gl, obj_shader)
             .expect("Failed to upload mesh");
 
-        renderer.add_renderable(object);
+        // Cube has both rendering and physics
+        let cube = Arc::new(Mutex::new(cube));
+        renderer.add_renderable(cube.clone());
+        physics_manager.add_physical(cube);
 
         camera.transform.position = Vec3::new(0.0, 0.0, 5.0);
 
@@ -90,7 +95,8 @@ impl ViewPort {
             gl,
 
             camera,
-            renderer,
+            render_manager: renderer,
+            physics_manager,
             enable_2d: false,
             capture_mouse: false,
             last_mouse_pos: Vec2::ZERO,
@@ -152,34 +158,36 @@ impl ViewPort {
         if input.key_pressed(KeyCode::KeyR) {
             info!("Reloading Shaders");
 
-            self.renderer.render_targets.iter_mut().for_each(|o| {
-                let to_reload: Vec<(u32, &str)> = o
-                    .material()
-                    .shader
-                    .sources
-                    .iter()
-                    .map(|s| (s.shader_type, s.filepath))
-                    .collect();
+            self.render_manager.render_targets.iter().for_each(|o| {
+                if let Ok(mut obj) = o.lock() {
+                    let to_reload: Vec<(u32, &str)> = obj
+                        .material()
+                        .shader
+                        .sources
+                        .iter()
+                        .map(|s| (s.shader_type, s.filepath))
+                        .collect();
 
-                let shader = o.material_mut().shader_mut();
+                    let shader = obj.material_mut().shader_mut();
 
-                to_reload.chunks(2).for_each(|c| {
-                    let mut vertex = "";
-                    let mut fragment = "";
+                    to_reload.chunks(2).for_each(|c| {
+                        let mut vertex = "";
+                        let mut fragment = "";
 
-                    c.iter().for_each(|s| {
-                        let shader_type = s.0;
-                        let path = s.1;
+                        c.iter().for_each(|s| {
+                            let shader_type = s.0;
+                            let path = s.1;
 
-                        match shader_type {
-                            glow::VERTEX_SHADER => vertex = path,
-                            glow::FRAGMENT_SHADER => fragment = path,
-                            _ => panic!("Unsupported shader type"),
-                        }
+                            match shader_type {
+                                glow::VERTEX_SHADER => vertex = path,
+                                glow::FRAGMENT_SHADER => fragment = path,
+                                _ => panic!("Unsupported shader type"),
+                            }
+                        });
+
+                        Shader::reload_shader(self.gl.clone(), shader, vertex, fragment);
                     });
-
-                    Shader::reload_shader(self.gl.clone(), shader, vertex, fragment);
-                });
+                }
             });
         }
 
@@ -264,7 +272,9 @@ impl ViewPort {
     }
 
     pub fn update(&mut self, dt: f32) {
-        self.renderer.update(dt);
+        // Update physics before rendering
+        self.physics_manager.physics_update(dt);
+        self.render_manager.update(dt);
     }
 
     pub fn render(&mut self) {
@@ -277,6 +287,6 @@ impl ViewPort {
         // Pass projection * view (vp); each renderable supplies its own model matrix.
         self.view_matrix = self.camera.get_camera_view_matrix();
         let pv = self.projection_matrix * self.view_matrix;
-        self.renderer.draw(&pv, &self.camera);
+        self.render_manager.draw(&pv, &self.camera);
     }
 }

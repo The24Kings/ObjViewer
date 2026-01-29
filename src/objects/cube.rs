@@ -1,13 +1,15 @@
 use crate::{
-    game::Transform,
-    graphics::{Material, Mesh, Renderable}, objects::calculate_normals,
+    game::{GameObject, Physical, Renderable, Transform},
+    graphics::{Material, Mesh},
+    objects::calculate_normals,
 };
-use glam::Mat4;
+use glam::{Mat4, Vec3};
 
 pub struct Cube {
     pub material: Material,
     pub mesh: Mesh,
     pub transform: Transform,
+    pub velocity: Vec3,
     sin_wave: Vec<f32>,
     sin_index: f32,
 }
@@ -71,10 +73,36 @@ impl Renderable for Cube {
     }
 }
 
+impl Physical for Cube {
+    fn update(&mut self, dt: f32) {
+        // Apply velocity to position
+        self.transform.position += self.velocity * dt;
+    }
+
+    fn velocity(&self) -> Vec3 {
+        self.velocity
+    }
+
+    fn set_velocity(&mut self, velocity: Vec3) {
+        self.velocity = velocity;
+    }
+
+    fn transform(&self) -> &Transform {
+        &self.transform
+    }
+
+    fn transform_mut(&mut self) -> &mut Transform {
+        &mut self.transform
+    }
+}
+
+// Implement the GameObject super-trait for Cube (requires both Renderable + Physical)
+impl GameObject for Cube {}
+
 impl Cube {
     pub fn new(material: Material) -> Self {
         let (mut vertices, indices) = Self::data();
-        
+
         calculate_normals(&mut vertices, &indices);
 
         let mesh = Mesh {
@@ -98,6 +126,7 @@ impl Cube {
             material,
             mesh,
             transform: Transform::default(),
+            velocity: Vec3::ZERO,
             sin_wave,
             sin_index: 0.0,
         }
