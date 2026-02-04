@@ -38,6 +38,7 @@ macro_rules! loaded_shader {
         shader.add_attribute("i_position");
         shader.add_attribute("i_color");
         shader.add_attribute("i_normal");
+        shader.add_attribute("i_uv");
 
         shader
     }};
@@ -168,6 +169,7 @@ impl Shader {
         reloaded_shader.add_attribute("i_position");
         reloaded_shader.add_attribute("i_color");
         reloaded_shader.add_attribute("i_normal");
+        reloaded_shader.add_attribute("i_uv");
 
         if reloaded_shader.is_linked() {
             let old_handle = shader.handle;

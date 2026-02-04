@@ -68,13 +68,32 @@ impl Light {
         let mut vertices: Vec<Vertex> = Vec::with_capacity(6 * 4); // 6 faces * 4 points
         let mut indices: Vec<u32> = Vec::with_capacity(36);
 
-        // Helper to push a face (4 verts, color, and 6 indices)
-        let mut push_face = |positions: &[Vec3], color: Vec3| {
+        // Standard UV coordinates for a quad (same texture on each face)
+        let uv_bl = glam::Vec2::new(0.0, 1.0); // bottom-left
+        let uv_br = glam::Vec2::new(1.0, 1.0); // bottom-right
+        let uv_tr = glam::Vec2::new(1.0, 0.0); // top-right
+        let uv_tl = glam::Vec2::new(0.0, 0.0); // top-left
+
+        // Colors per face
+        let red = Vec3::new(1.0, 0.0, 0.0);
+        let green = Vec3::new(0.0, 1.0, 0.0);
+        let blue = Vec3::new(0.0, 0.0, 1.0);
+        let yellow = Vec3::new(1.0, 1.0, 0.0);
+        let magenta = Vec3::new(1.0, 0.0, 1.0);
+        let cyan = Vec3::new(0.0, 1.0, 1.0);
+
+        // Helper to push a face (4 verts, color, tex coords, and 6 indices)
+        let mut push_face = |positions: &[Vec3], color: Vec3, uvs: &[glam::Vec2]| {
             let base = vertices.len() as u32;
 
-            // push vertex data (position + color + placeholder normal)
-            for &pos in positions.iter() {
-                vertices.push(Vertex::with_color(pos, color, Vec3::ZERO));
+            // push vertex data (position + color + placeholder normal + tex coords)
+            for (i, &pos) in positions.iter().enumerate() {
+                vertices.push(Vertex {
+                    position: pos,
+                    color,
+                    normal: Vec3::ZERO,
+                    tex_coords: uvs[i],
+                });
             }
 
             indices.push(base);
@@ -85,14 +104,6 @@ impl Light {
             indices.push(base + 3);
         };
 
-        // Colors per face
-        let red = Vec3::new(1.0, 0.0, 0.0);
-        let green = Vec3::new(0.0, 1.0, 0.0);
-        let blue = Vec3::new(0.0, 0.0, 1.0);
-        let yellow = Vec3::new(1.0, 1.0, 0.0);
-        let magenta = Vec3::new(1.0, 0.0, 1.0);
-        let cyan = Vec3::new(0.0, 1.0, 1.0);
-
         // Front (+Z)
         push_face(
             &[
@@ -102,6 +113,7 @@ impl Light {
                 Vec3::new(-0.5, 0.5, 0.5),
             ],
             red,
+            &[uv_bl, uv_br, uv_tr, uv_tl],
         );
 
         // Back (-Z)
@@ -113,6 +125,7 @@ impl Light {
                 Vec3::new(0.5, 0.5, -0.5),
             ],
             green,
+            &[uv_bl, uv_br, uv_tr, uv_tl],
         );
 
         // Left (-X)
@@ -124,6 +137,7 @@ impl Light {
                 Vec3::new(-0.5, 0.5, -0.5),
             ],
             blue,
+            &[uv_bl, uv_br, uv_tr, uv_tl],
         );
 
         // Right (+X)
@@ -135,6 +149,7 @@ impl Light {
                 Vec3::new(0.5, 0.5, 0.5),
             ],
             yellow,
+            &[uv_bl, uv_br, uv_tr, uv_tl],
         );
 
         // Top (+Y)
@@ -146,6 +161,7 @@ impl Light {
                 Vec3::new(-0.5, 0.5, -0.5),
             ],
             magenta,
+            &[uv_bl, uv_br, uv_tr, uv_tl],
         );
 
         // Bottom (-Y)
@@ -157,6 +173,7 @@ impl Light {
                 Vec3::new(-0.5, -0.5, 0.5),
             ],
             cyan,
+            &[uv_bl, uv_br, uv_tr, uv_tl],
         );
 
         (vertices, indices)

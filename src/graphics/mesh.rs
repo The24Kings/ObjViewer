@@ -91,7 +91,7 @@ impl Mesh {
                     "i_position" => (offset_of!(Vertex, position), VEC3),
                     "i_color" => (offset_of!(Vertex, color), VEC3),
                     "i_normal" => (offset_of!(Vertex, normal), VEC3),
-                    "i_tex_coords" => (offset_of!(Vertex, tex_coords), VEC2),
+                    "i_uv" => (offset_of!(Vertex, tex_coords), VEC2),
                     _ => {
                         return Err(format!("Unknown attribute name: {}", name));
                     }

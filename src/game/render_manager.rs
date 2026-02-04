@@ -2,7 +2,7 @@ use glam::{Mat4, Vec3};
 use glow::Context;
 use std::sync::{Arc, Mutex};
 
-use crate::{game::Camera, game::Renderable};
+use crate::game::{Camera, Renderable};
 
 pub struct RenderManager {
     gl: Arc<Context>,
@@ -41,15 +41,16 @@ impl RenderManager {
                 // Set uniforms
                 material.shader.setUniform4fm("pv", model);
                 material.shader.setUniform4fm("model", &obj.model_matrix());
+                material.shader.setUniform1i("u_texture", 0); // Replace in the future with tex.unit for PBR
 
-                material.shader.setUniform1f("ambient", 0.2);
-                material.shader.setUniform1f("specular", 0.5);
+                material.shader.setUniform1f("u_ambient", 0.2);
+                material.shader.setUniform1f("u_specular", 0.5);
                 material //FIXME: Actually have a light source in the view_port
                     .shader
-                    .setUniform3fv("light_pos", &Vec3::new(1.0, 1.0, 1.0));
+                    .setUniform3fv("u_light_pos", &Vec3::new(1.0, 1.0, 1.0));
                 material
                     .shader
-                    .setUniform3fv("view_pos", &camera.transform.position);
+                    .setUniform3fv("u_view_pos", &camera.transform.position);
 
                 // Draw mesh
                 mesh.draw(&self.gl);

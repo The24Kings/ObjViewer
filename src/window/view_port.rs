@@ -10,7 +10,7 @@ use winit::window::{CursorGrabMode, Window};
 use winit_input_helper::WinitInputHelper;
 
 use crate::game::{Camera, PhysicsManager, Projection, RenderManager};
-use crate::graphics::{Material, Shader};
+use crate::graphics::{Material, Shader, Texture};
 use crate::loaded_shader;
 use crate::objects::{Cube, Light};
 
@@ -58,10 +58,16 @@ impl ViewPort {
                 .link();
 
             shader.add_attribute("i_position");
+            shader.add_attribute("i_uv");
 
             shader
         });
-        let light_material = Material::new(light_shader.clone());
+        let mut light_material = Material::new(gl.clone(), light_shader.clone());
+        let light_texture = Arc::new(
+            Texture::from_file(gl.clone(), "src/objects/textures/redstone_lamp.png")
+                .expect("Failed to load texture"),
+        );
+        light_material.texture = Some(light_texture);
 
         let mut light = Light::new(light_material);
         light
@@ -76,14 +82,13 @@ impl ViewPort {
         renderer.add_renderable(light);
 
         let obj_shader = Arc::new(loaded_shader!(gl.clone()));
-        let obj_material = Material::new(obj_shader.clone());
+        let obj_material = Material::new(gl.clone(), obj_shader.clone());
 
         let mut cube = Cube::new(obj_material);
         cube.mesh
             .upload(&gl, obj_shader)
             .expect("Failed to upload mesh");
 
-        // Cube has both rendering and physics
         let cube = Arc::new(Mutex::new(cube));
         renderer.add_renderable(cube.clone());
         physics_manager.add_physical(cube);

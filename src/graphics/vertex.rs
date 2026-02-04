@@ -22,13 +22,13 @@ pub struct Vertex {
 }
 
 impl Vertex {
-    /// Creates a new vertex with position and normal.
-    pub fn new(position: Vec3, normal: Vec3) -> Self {
+    /// Creates a new vertex with position, normal, color, and texture.
+    pub fn new(position: Vec3, color: Vec3, normal: Vec3, tex_coords: Vec2) -> Self {
         Self {
             position,
-            color: Vec3::ONE, // default white
+            color,
             normal,
-            tex_coords: Vec2::ZERO,
+            tex_coords,
         }
     }
 
@@ -47,16 +47,6 @@ impl Vertex {
         Self {
             position,
             color: Vec3::ONE,
-            normal,
-            tex_coords,
-        }
-    }
-
-    /// Creates a vertex with position, color, normal, and texture coordinates.
-    pub fn with_all(position: Vec3, color: Vec3, normal: Vec3, tex_coords: Vec2) -> Self {
-        Self {
-            position,
-            color,
             normal,
             tex_coords,
         }
