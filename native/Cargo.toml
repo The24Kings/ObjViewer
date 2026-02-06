@@ -1,0 +1,20 @@
+[package]
+name = "native"
+description = "Window code for running on Windows, Linux, etc."
+version = "0.1.0"
+edition.workspace = true
+repository.workspace = true
+
+[dependencies]
+core = { path = "../core" }
+
+glow.workspace = true
+glutin.workspace = true
+glutin-winit.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+time.workspace = true
+raw-window-handle.workspace = true
+winit.workspace = true
+winit_input_helper.workspace = true
+log.workspace = true

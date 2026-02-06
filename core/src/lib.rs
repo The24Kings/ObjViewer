@@ -1,3 +1,10 @@
+pub mod game;
+pub mod graphics;
+pub mod objects;
+mod view_port;
+
+pub use self::view_port::ViewPort;
+
 use glow::{Context, HasContext};
 
 // Helper to check for GL errors at runtime. Mirrors the behavior of the

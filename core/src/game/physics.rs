@@ -4,7 +4,7 @@ use crate::game::Transform;
 
 /// Trait for objects that participate in physics simulation.
 /// Implement this for any object that needs velocity, collision, or physics updates.
-pub trait Physical: Send + Sync {
+pub trait Physical {
     /// Called each frame to update physics state (velocity, acceleration, etc.)
     fn update(&mut self, dt: f32);
 

@@ -14,6 +14,9 @@ pub use render::Renderable;
 pub use render_manager::RenderManager;
 pub use transform::Transform;
 
+// Re-export type aliases from graphics for convenience
+pub use crate::graphics::{GlRef, PhysicalRef, RenderableRef};
+
 /// A super-trait for objects that need both rendering and physics capabilities.
 /// Objects like `Cube` implement this. Render-only objects (like `Light`) only
 /// implement `Renderable`. Invisible physical objects only implement `Physical`.

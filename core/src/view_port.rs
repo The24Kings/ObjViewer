@@ -1,22 +1,29 @@
 use glam::{Mat4, Vec2, Vec3, vec2, vec4};
-use glow::{Context, HasContext};
+use glow::HasContext;
 use log::info;
-use std::sync::{Arc, Mutex};
+use std::cell::RefCell;
+use std::rc::Rc;
 use winit::dpi::PhysicalPosition;
 use winit::event::MouseButton;
 use winit::event_loop::ActiveEventLoop;
 use winit::keyboard::KeyCode;
-use winit::window::{CursorGrabMode, Window};
+use winit::window::CursorGrabMode;
 use winit_input_helper::WinitInputHelper;
 
 use crate::game::{Camera, PhysicsManager, Projection, RenderManager};
-use crate::graphics::{Material, Shader, Texture};
+#[cfg(not(target_arch = "wasm32"))]
+use crate::graphics::Shader;
+use crate::graphics::{
+    GlRef, LIGHT_CUBE_FRAG_PATH, LIGHT_CUBE_FRAG_SRC, LIGHT_CUBE_VERT_PATH, LIGHT_CUBE_VERT_SRC,
+    Material, ShaderRef, Texture, TextureRef, WindowRef, new_renderable_ref, new_shader_ref,
+    new_texture_ref,
+};
 use crate::loaded_shader;
 use crate::objects::{Cube, Light};
 
 pub struct ViewPort {
-    window: Arc<Window>,
-    gl: Arc<Context>,
+    window: WindowRef,
+    gl: GlRef,
     camera: Camera,
     enable_2d: bool,
     capture_mouse: bool,
@@ -28,45 +35,47 @@ pub struct ViewPort {
 }
 
 impl ViewPort {
-    pub fn new(window: Arc<Window>, gl: Arc<Context>, (_width, _height): (u32, u32)) -> Self {
+    pub fn new(window: WindowRef, gl: GlRef, (width, height): (u32, u32)) -> Self {
         unsafe {
-            let size = window.inner_size();
-            gl.viewport(0, 0, size.width as i32, size.height as i32);
-            info!("Initial viewport: {}/{}", size.width, size.height);
+            info!("Initial viewport: {}/{}", width, height);
 
+            gl.viewport(0, 0, width as i32, height as i32);
             gl.enable(glow::DEPTH_TEST);
-            gl.polygon_mode(glow::FRONT_AND_BACK, glow::FILL);
         }
 
         let mut camera = Camera::new(0.1, 100.0);
         let mut renderer = RenderManager::new(gl.clone()).unwrap();
         let mut physics_manager = PhysicsManager::new();
 
-        let light_shader = Arc::new({
+        let light_shader: ShaderRef = {
             let mut shader = crate::graphics::Shader::new(gl.clone());
             shader
                 .add(
                     glow::FRAGMENT_SHADER,
-                    include_str!("../../shaders/light_cube.frag"),
-                    "shaders/light_cube.frag",
+                    LIGHT_CUBE_FRAG_SRC,
+                    LIGHT_CUBE_FRAG_PATH,
                 )
                 .add(
                     glow::VERTEX_SHADER,
-                    include_str!("../../shaders/light_cube.vert"),
-                    "shaders/light_cube.vert",
+                    LIGHT_CUBE_VERT_SRC,
+                    LIGHT_CUBE_VERT_PATH,
                 )
                 .link();
 
             shader.add_attribute("i_position");
             shader.add_attribute("i_uv");
 
-            shader
-        });
+            new_shader_ref(shader)
+        };
         let mut light_material = Material::new(gl.clone(), light_shader.clone());
-        let light_texture = Arc::new(
-            Texture::from_file(gl.clone(), "src/objects/textures/redstone_lamp.png")
-                .expect("Failed to load texture"),
-        );
+        let light_texture: TextureRef = {
+            let tex = Texture::from_bytes(
+                gl.clone(),
+                include_bytes!("objects/textures/redstone_lamp.png"),
+            )
+            .expect("Failed to load texture");
+            new_texture_ref(tex)
+        };
         light_material.texture = Some(light_texture);
 
         let mut light = Light::new(light_material);
@@ -78,10 +87,13 @@ impl ViewPort {
         light.transform.position = Vec3::new(1.0, 1.0, 1.0);
         light.transform.scale = Vec3::new(0.25, 0.25, 0.25);
 
-        let light = Arc::new(Mutex::new(light));
+        let light = new_renderable_ref(light);
         renderer.add_renderable(light);
 
-        let obj_shader = Arc::new(loaded_shader!(gl.clone()));
+        let obj_shader: ShaderRef = {
+            let shader = loaded_shader!(gl.clone());
+            new_shader_ref(shader)
+        };
         let obj_material = Material::new(gl.clone(), obj_shader.clone());
 
         let mut cube = Cube::new(obj_material);
@@ -89,11 +101,17 @@ impl ViewPort {
             .upload(&gl, obj_shader)
             .expect("Failed to upload mesh");
 
-        let cube = Arc::new(Mutex::new(cube));
+        let cube: Rc<RefCell<Cube>> = Rc::new(RefCell::new(cube));
+
         renderer.add_renderable(cube.clone());
         physics_manager.add_physical(cube);
 
         camera.transform.position = Vec3::new(0.0, 0.0, 5.0);
+
+        // Calculate initial projection matrix using the passed dimensions
+        let aspect = width as f32 / height as f32;
+        let projection_matrix =
+            camera.get_camera_projection_matrix(Projection::Perspective(aspect));
 
         ViewPort {
             window,
@@ -106,7 +124,7 @@ impl ViewPort {
             capture_mouse: false,
             last_mouse_pos: Vec2::ZERO,
 
-            projection_matrix: Mat4::IDENTITY,
+            projection_matrix,
             view_matrix: Mat4::IDENTITY,
         }
     }
@@ -114,6 +132,10 @@ impl ViewPort {
     // Set projection matrix based on current window size, fov, and mode (2D/3D)
     fn set_projection_matrix(&mut self) {
         let size = self.window.inner_size();
+        if size.width == 0 || size.height == 0 {
+            return;
+        }
+
         let aspect = size.width as f32 / size.height as f32;
 
         let projection = if self.enable_2d {
@@ -147,10 +169,11 @@ impl ViewPort {
         &mut self,
         _dt: f32,
         input: &WinitInputHelper,
-        event_loop: &ActiveEventLoop,
+        _event_loop: &ActiveEventLoop,
     ) {
+        #[cfg(not(target_arch = "wasm32"))]
         if input.key_pressed(KeyCode::Escape) {
-            event_loop.exit();
+            _event_loop.exit();
         }
         if input.key_pressed(KeyCode::F1) {
             self.enable_2d = !self.enable_2d;
@@ -160,39 +183,39 @@ impl ViewPort {
             self.capture_mouse = !self.capture_mouse;
             self.update_mouse_capture_state();
         }
+        #[cfg(not(target_arch = "wasm32"))]
         if input.key_pressed(KeyCode::KeyR) {
             info!("Reloading Shaders");
 
             self.render_manager.render_targets.iter().for_each(|o| {
-                if let Ok(mut obj) = o.lock() {
-                    let to_reload: Vec<(u32, &str)> = obj
-                        .material()
-                        .shader
-                        .sources
-                        .iter()
-                        .map(|s| (s.shader_type, s.filepath))
-                        .collect();
+                let mut obj = o.borrow_mut();
+                let to_reload: Vec<(u32, &str)> = obj
+                    .material()
+                    .shader
+                    .sources
+                    .iter()
+                    .map(|s| (s.shader_type, s.filepath))
+                    .collect();
 
-                    let shader = obj.material_mut().shader_mut();
+                let shader = obj.material_mut().shader_mut();
 
-                    to_reload.chunks(2).for_each(|c| {
-                        let mut vertex = "";
-                        let mut fragment = "";
+                to_reload.chunks(2).for_each(|c| {
+                    let mut vertex = "";
+                    let mut fragment = "";
 
-                        c.iter().for_each(|s| {
-                            let shader_type = s.0;
-                            let path = s.1;
+                    c.iter().for_each(|s| {
+                        let shader_type = s.0;
+                        let path = s.1;
 
-                            match shader_type {
-                                glow::VERTEX_SHADER => vertex = path,
-                                glow::FRAGMENT_SHADER => fragment = path,
-                                _ => panic!("Unsupported shader type"),
-                            }
-                        });
-
-                        Shader::reload_shader(self.gl.clone(), shader, vertex, fragment);
+                        match shader_type {
+                            glow::VERTEX_SHADER => vertex = path,
+                            glow::FRAGMENT_SHADER => fragment = path,
+                            _ => panic!("Unsupported shader type"),
+                        }
                     });
-                }
+
+                    Shader::reload_shader(self.gl.clone(), shader, vertex, fragment);
+                });
             });
         }
 
@@ -245,12 +268,12 @@ impl ViewPort {
                     let diff = self.last_mouse_pos - current;
 
                     if diff.length() > 0.0 {
-                        let lastMouseWorldPos =
+                        let last_mouse_world_pos =
                             self.normalize_cursor(self.last_mouse_pos).truncate();
-                        let diffWorldSpace =
+                        let diff_world_space =
                             self.normalize_cursor(self.last_mouse_pos + diff).truncate();
 
-                        let diff = lastMouseWorldPos - diffWorldSpace;
+                        let diff = last_mouse_world_pos - diff_world_space;
 
                         self.camera.transform.position.x -= diff.x;
                         self.camera.transform.position.y -= diff.y;
@@ -272,7 +295,11 @@ impl ViewPort {
         }
     }
 
-    pub fn resize(&mut self, _width: u32, _height: u32) {
+    pub fn resize(&mut self, width: u32, height: u32) {
+        unsafe {
+            self.gl.viewport(0, 0, width as i32, height as i32);
+            info!("Resized viewport: {}/{}", width, height);
+        }
         self.set_projection_matrix();
     }
 

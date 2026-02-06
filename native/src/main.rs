@@ -8,7 +8,8 @@ use glutin::surface::{Surface, WindowSurface};
 use glutin_winit::{DisplayBuilder, GlWindow};
 use log::info;
 use raw_window_handle::{HasWindowHandle, RawWindowHandle};
-use std::sync::Arc;
+use std::num::NonZeroU32;
+use std::rc::Rc;
 use std::time::{Duration, Instant};
 use time::{UtcOffset, format_description::parse};
 use tracing_subscriber::fmt::time::OffsetTime;
@@ -19,12 +20,7 @@ use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::window::{Window, WindowAttributes, WindowId};
 use winit_input_helper::WinitInputHelper;
 
-use crate::window::ViewPort;
-
-pub mod game;
-pub mod graphics;
-pub mod objects;
-pub mod window;
+use core::ViewPort;
 
 const WIDTH: u32 = 1920;
 const HEIGHT: u32 = 1080;
@@ -38,7 +34,7 @@ struct State {
 }
 
 struct App {
-    window: Option<Arc<Window>>,
+    window: Option<Rc<Window>>,
     state: Option<State>,
     input: WinitInputHelper,
     request_redraw: bool,
@@ -110,7 +106,7 @@ impl ApplicationHandler for App {
             let notCurrentGlContext = glDisplay
                 .create_context(&glConfig, &contextAttributes)
                 .unwrap();
-            let window = Arc::new(window.unwrap());
+            let window = Rc::new(window.unwrap());
 
             let surfaceAttributes = window.build_surface_attributes(Default::default()).unwrap();
             let glSurface = glDisplay
@@ -118,7 +114,7 @@ impl ApplicationHandler for App {
                 .unwrap();
 
             let glContext = notCurrentGlContext.make_current(&glSurface).unwrap();
-            let gl = Arc::new(glow::Context::from_loader_function_cstr(|s| {
+            let gl = Rc::new(glow::Context::from_loader_function_cstr(|s| {
                 glDisplay.get_proc_address(s)
             }));
 
@@ -141,6 +137,11 @@ impl ApplicationHandler for App {
             WindowEvent::Resized(size) => {
                 self.request_redraw = true;
                 if let Some(ref mut state) = self.state {
+                    state.glSurface.resize(
+                        &state.glContext,
+                        NonZeroU32::new(size.width).unwrap(),
+                        NonZeroU32::new(size.height).unwrap(),
+                    );
                     state.view_port.resize(size.width, size.height);
                 }
             }

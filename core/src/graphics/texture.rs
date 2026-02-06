@@ -1,11 +1,13 @@
-use glow::{Context, HasContext, NativeTexture};
+use glow::{HasContext, Texture as GlowTexture};
+#[cfg(not(target_arch = "wasm32"))]
 use image::ImageReader;
-use std::sync::Arc;
+
+use crate::graphics::GlRef;
 
 #[derive(Clone)]
 pub struct Texture {
-    gl: Arc<Context>,
-    pub(crate) handle: NativeTexture,
+    gl: GlRef,
+    pub(crate) handle: GlowTexture,
     pub unit: i32,
     pub width: u32,
     pub height: u32,
@@ -27,14 +29,14 @@ pub enum WrapMode {
 }
 
 pub struct TextureBuilder {
-    gl: Arc<Context>,
+    gl: GlRef,
     unit: i32,
     filter: FilterMode,
     wrap: WrapMode,
 }
 
 impl TextureBuilder {
-    pub fn new(gl: Arc<Context>) -> Self {
+    pub fn new(gl: GlRef) -> Self {
         Self {
             gl,
             unit: 0,
@@ -58,12 +60,22 @@ impl TextureBuilder {
         self
     }
 
-    /// Load texture from file path
+    /// Load texture from file path (not supported on WASM - use load_bytes instead)
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn load_file(self, path: &str) -> Result<Texture, String> {
         let img = ImageReader::open(path)
             .map_err(|e| format!("Failed to open '{}': {}", path, e))?
             .decode()
             .map_err(|e| format!("Failed to decode '{}': {}", path, e))?
+            .to_rgba8();
+
+        self.load_rgba(&img.as_raw(), img.width(), img.height())
+    }
+
+    /// Load texture from embedded bytes (works on all platforms including WASM)
+    pub fn load_bytes(self, data: &[u8]) -> Result<Texture, String> {
+        let img = image::load_from_memory(data)
+            .map_err(|e| format!("Failed to decode image: {}", e))?
             .to_rgba8();
 
         self.load_rgba(&img.as_raw(), img.width(), img.height())
@@ -123,17 +135,23 @@ impl TextureBuilder {
 
 impl Texture {
     /// Quick load with default settings (unit 0, nearest filter, repeat wrap)
-    pub fn from_file(gl: Arc<Context>, path: &str) -> Result<Texture, String> {
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn from_file(gl: GlRef, path: &str) -> Result<Texture, String> {
         TextureBuilder::new(gl).load_file(path)
     }
 
+    /// Quick load from embedded bytes with default settings
+    pub fn from_bytes(gl: GlRef, data: &[u8]) -> Result<Texture, String> {
+        TextureBuilder::new(gl).load_bytes(data)
+    }
+
     /// Start building a texture with custom settings
-    pub fn builder(gl: Arc<Context>) -> TextureBuilder {
+    pub fn builder(gl: GlRef) -> TextureBuilder {
         TextureBuilder::new(gl)
     }
 
     /// Create a default 1x1 white texture (RGBA: 255, 255, 255, 255)
-    pub fn white_1x1(gl: Arc<Context>) -> Result<Texture, String> {
+    pub fn white_1x1(gl: GlRef) -> Result<Texture, String> {
         let white_pixel: [u8; 4] = [255, 255, 255, 255];
         TextureBuilder::new(gl)
             .filter(FilterMode::Nearest)

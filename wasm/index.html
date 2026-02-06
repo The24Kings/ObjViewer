@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <link rel="icon" href="data:,">
+    <meta charset="utf-8">
+    <title>Obj Viewer</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        canvas {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            /*aspect-ratio: 4/3;*/
+            width: auto;
+            height: 100%;
+            max-width: 100%;
+            max-height: 100%;
+        }
+
+        body {
+            height: 100vh;
+            margin: 0;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="canvasContainer">
+        <canvas id="canvas" width="800" height="600"></canvas>
+    </div>
+    <script type="module">
+        import init from "./pkg/wasm.js";
+
+        async function run() {
+            await init();
+        }
+
+        run().then(() => {
+            console.log("WASM Loaded");
+        });
+    </script>
+</body>
+
+</html>

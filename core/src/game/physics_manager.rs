@@ -1,9 +1,7 @@
-use std::sync::{Arc, Mutex};
-
-use crate::game::Physical;
+use crate::graphics::PhysicalRef;
 
 pub struct PhysicsManager {
-    pub physical_targets: Vec<Arc<Mutex<dyn Physical>>>,
+    pub physical_targets: Vec<PhysicalRef>,
 }
 
 impl PhysicsManager {
@@ -13,15 +11,13 @@ impl PhysicsManager {
         }
     }
 
-    pub fn add_physical(&mut self, physical: Arc<Mutex<dyn Physical>>) {
+    pub fn add_physical(&mut self, physical: PhysicalRef) {
         self.physical_targets.push(physical);
     }
 
     pub fn update(&mut self, dt: f32) {
         for physical in &self.physical_targets {
-            if let Ok(mut obj) = physical.lock() {
-                obj.update(dt);
-            }
+            physical.borrow_mut().update(dt);
         }
     }
 

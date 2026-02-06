@@ -4,7 +4,7 @@ use crate::graphics::{Material, Mesh};
 
 /// Trait for objects that can be rendered.
 /// Implement this for any object that has a mesh and material.
-pub trait Renderable: Send + Sync {
+pub trait Renderable {
     fn material(&self) -> &Material;
     fn mesh(&self) -> &Mesh;
 

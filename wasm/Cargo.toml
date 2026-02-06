@@ -1,0 +1,31 @@
+[package]
+name = "wasm"
+description = "Window/Canvas code for building to a wasm package for browsers"
+version = "0.1.0"
+edition.workspace = true
+repository.workspace = true
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+core = { path = "../core" }
+glow.workspace = true
+winit.workspace = true
+winit_input_helper.workspace = true
+log.workspace = true
+
+console_error_panic_hook = "0.1.7"
+console_log = "1.0.0"
+web-time = "1.1.0"
+
+wasm-bindgen = "0.2.106"
+web-sys = { version = "0.3.83", features = [
+    "HtmlCanvasElement",
+    "WebGl2RenderingContext",
+    "Window",
+    "Document",
+] }
+
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = false

@@ -1,4 +1,5 @@
-#version 330
+#version 300 es
+precision mediump float;
 
 in vec3 f_pos;
 in vec3 f_color;
@@ -28,7 +29,7 @@ void main(void) {
 	// Specular
 	vec3 view_dir = normalize(u_view_pos - f_pos);
 	vec3 reflect_dir = reflect(-light_dir, normal);
-	float spec = pow(max(dot(view_dir, reflect_dir), 0.0), 32);
+	float spec = pow(max(dot(view_dir, reflect_dir), 0.0), 32.0);
 	vec3 specular = u_specular * spec * f_color;
 
 	vec3 result = ambient + diffuse + specular;

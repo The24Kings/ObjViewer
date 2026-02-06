@@ -1,18 +1,18 @@
 use glow::{Context, HasContext};
-use std::sync::Arc;
+use std::rc::Rc;
 
-use crate::graphics::{Shader, Texture};
+use crate::graphics::{GlRef, ShaderRef, TextureRef, Shader, Texture, new_texture_ref};
 
 pub struct Material {
-    pub shader: Arc<Shader>,
-    pub texture: Option<Arc<Texture>>,
-    default_texture: Arc<Texture>,
+    pub shader: ShaderRef,
+    pub texture: Option<TextureRef>,
+    default_texture: TextureRef,
 }
 
 impl Material {
-    pub fn new(gl: Arc<Context>, shader: Arc<Shader>) -> Self {
+    pub fn new(gl: GlRef, shader: ShaderRef) -> Self {
         let default_texture =
-            Arc::new(Texture::white_1x1(gl).expect("Failed to create default white texture"));
+            new_texture_ref(Texture::white_1x1(gl).expect("Failed to create default white texture"));
         Self {
             shader,
             texture: None,
@@ -25,7 +25,7 @@ impl Material {
     }
 
     pub fn shader_mut(&mut self) -> &mut Shader {
-        Arc::get_mut(&mut self.shader).unwrap()
+        Rc::get_mut(&mut self.shader).unwrap()
     }
 
     pub fn texture(&self) -> &Texture {
@@ -37,7 +37,7 @@ impl Material {
 
     pub fn texture_mut(&mut self) -> &mut Texture {
         match &mut self.texture {
-            Some(tex) => Arc::get_mut(tex).unwrap(),
+            Some(tex) => Rc::get_mut(tex).unwrap(),
             None => panic!("No texture attatched to material"),
         }
     }

@@ -1,13 +1,15 @@
-use glow::{Context, HasContext, NativeProgram, NativeShader};
-use limited_gl::gl_check_error;
+#![allow(dead_code)]
+use glow::{HasContext, Program, Shader};
 use std::io::{Error, ErrorKind};
-use std::sync::Arc;
+
+use crate::gl_check_error;
+use crate::graphics::GlRef;
 
 #[derive(Clone)]
 pub(crate) struct ShaderSource {
-    gl: Arc<Context>,
+    gl: GlRef,
     pub shader_type: u32,
-    pub handle: NativeShader,
+    pub handle: Shader,
     pub filepath: &'static str,
     destroyed: bool,
 }
@@ -15,8 +17,8 @@ pub(crate) struct ShaderSource {
 #[allow(dead_code)]
 impl ShaderSource {
     pub(crate) fn new(
-        renderer: Arc<Context>,
-        program: NativeProgram,
+        renderer: GlRef,
+        program: Program,
         shader_type: u32,
         source: &str,
         filepath: &'static str,

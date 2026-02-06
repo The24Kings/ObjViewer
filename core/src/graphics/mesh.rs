@@ -1,10 +1,9 @@
-use bytemuck::cast_slice;
+use bytemuck::{cast_slice, offset_of};
 use glow::{Buffer, Context, HasContext, VertexArray};
-use limited_gl::gl_check_error;
-use std::mem::{offset_of, size_of};
-use std::sync::Arc;
+use std::mem::size_of;
 
-use crate::graphics::{Shader, VEC3};
+use crate::gl_check_error;
+use crate::graphics::{ShaderRef, VEC3};
 use crate::graphics::{VEC2, Vertex};
 
 pub struct Mesh {
@@ -45,38 +44,38 @@ impl Mesh {
         self.vao.is_some() && self.vbo.is_some()
     }
 
-    pub fn upload(&mut self, gl: &Context, shader: Arc<Shader>) -> Result<(), String> {
+    pub fn upload(&mut self, gl: &Context, shader: ShaderRef) -> Result<(), String> {
         unsafe {
             let vao = gl
                 .create_vertex_array()
                 .expect("Failed to create vertex array");
 
-            let vbo = gl
-                .create_named_buffer()
-                .expect("Failed to create vertex buffer");
+            let vbo = gl.create_buffer().expect("Failed to create vertex buffer");
 
             gl.bind_vertex_array(Some(vao));
-
-            gl_check_error!(gl);
-
-            let stride = size_of::<Vertex>() as i32;
-            gl.vertex_array_vertex_buffer(vao, 0, Some(vbo), 0, stride);
+            gl.bind_buffer(glow::ARRAY_BUFFER, Some(vbo));
 
             gl_check_error!(gl);
 
             // Upload vertex data
-            gl.named_buffer_data_u8_slice(vbo, cast_slice(&self.vertices), glow::STATIC_DRAW);
+            gl.buffer_data_u8_slice(
+                glow::ARRAY_BUFFER,
+                cast_slice(&self.vertices),
+                glow::STATIC_DRAW,
+            );
 
             gl_check_error!(gl);
 
             // Upload index data if present
             if !self.indices.is_empty() {
-                let ibo = gl
-                    .create_named_buffer()
-                    .expect("Failed to create index buffer");
+                let ibo = gl.create_buffer().expect("Failed to create index buffer");
 
-                gl.vertex_array_element_buffer(vao, Some(ibo));
-                gl.named_buffer_data_u8_slice(ibo, cast_slice(&self.indices), glow::STATIC_DRAW);
+                gl.bind_buffer(glow::ELEMENT_ARRAY_BUFFER, Some(ibo));
+                gl.buffer_data_u8_slice(
+                    glow::ELEMENT_ARRAY_BUFFER,
+                    cast_slice(&self.indices),
+                    glow::STATIC_DRAW,
+                );
                 gl_check_error!(gl);
 
                 self.ibo = Some(ibo);
@@ -84,6 +83,8 @@ impl Mesh {
 
             self.vao = Some(vao);
             self.vbo = Some(vbo);
+
+            let stride = size_of::<Vertex>() as i32;
 
             // Setup vertex attributes
             for (name, loc) in &shader.attributes {
@@ -96,18 +97,13 @@ impl Mesh {
                         return Err(format!("Unknown attribute name: {}", name));
                     }
                 };
-                gl.vertex_array_attrib_format_f32(
-                    vao,
-                    *loc,
-                    size,
-                    glow::FLOAT,
-                    false,
-                    offset as u32,
-                );
-                gl.vertex_array_attrib_binding_f32(vao, *loc, 0);
-                gl.enable_vertex_array_attrib(vao, *loc);
+                gl.enable_vertex_attrib_array(*loc);
+                gl.vertex_attrib_pointer_f32(*loc, size, glow::FLOAT, false, stride, offset as i32);
                 gl_check_error!(gl);
             }
+
+            gl.bind_vertex_array(None);
+            gl.bind_buffer(glow::ARRAY_BUFFER, None);
 
             Ok(())
         }

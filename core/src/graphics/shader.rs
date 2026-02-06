@@ -1,16 +1,18 @@
+#![allow(non_snake_case)]
 use glam::{Mat4, Vec2, Vec3, Vec4};
-use glow::{Context, HasContext, NativeUniformLocation, Program};
-use limited_gl::gl_check_error;
+use glow::{HasContext, Program, UniformLocation};
 use std::collections::HashMap;
+#[cfg(not(target_arch = "wasm32"))]
 use std::fs;
-use std::sync::Arc;
 use tracing::error;
 
+use crate::gl_check_error;
+use crate::graphics::GlRef;
 use crate::graphics::ShaderSource;
 
 #[derive(Clone)]
 pub struct Shader {
-    gl: Arc<Context>,
+    gl: GlRef,
     pub(crate) handle: Program,
     pub(crate) attributes: HashMap<&'static str, u32>, // Name and Location
     pub(crate) sources: Vec<ShaderSource>,
@@ -25,13 +27,13 @@ macro_rules! loaded_shader {
         shader
             .add(
                 glow::FRAGMENT_SHADER,
-                include_str!("../../shaders/loaded_obj.frag"),
-                "shaders/loaded_obj.frag",
+                crate::graphics::LOADED_OBJ_FRAG_SRC,
+                crate::graphics::LOADED_OBJ_FRAG_PATH,
             )
             .add(
                 glow::VERTEX_SHADER,
-                include_str!("../../shaders/loaded_obj.vert"),
-                "shaders/loaded_obj.vert",
+                crate::graphics::LOADED_OBJ_VERT_SRC,
+                crate::graphics::LOADED_OBJ_VERT_PATH,
             )
             .link();
 
@@ -52,8 +54,8 @@ macro_rules! default_frag {
             $gl.clone(),
             $handle,
             glow::FRAGMENT_SHADER,
-            include_str!("../../shaders/default.frag"),
-            "shaders/default.frag",
+            crate::graphics::DEFAULT_FRAG_SRC,
+            crate::graphics::DEFAULT_FRAG_PATH,
         )
         .expect("Default fragment shader failed")
     }};
@@ -67,8 +69,8 @@ macro_rules! default_vert {
             $gl.clone(),
             $handle,
             glow::VERTEX_SHADER,
-            include_str!("../../shaders/default.vert"),
-            "shaders/default.vert",
+            crate::graphics::DEFAULT_VERT_SRC,
+            crate::graphics::DEFAULT_VERT_PATH,
         )
         .expect("Default vertex shader failed")
     }};
@@ -76,7 +78,7 @@ macro_rules! default_vert {
 
 #[allow(dead_code)]
 impl Shader {
-    pub fn new(renderer: Arc<Context>) -> Self {
+    pub fn new(renderer: GlRef) -> Self {
         unsafe {
             let program = renderer.create_program().expect("Failed to create program");
 
@@ -151,8 +153,9 @@ impl Shader {
     }
 
     //TODO: Add a fallback for when loading the shader fails, don't just unwrap Nothing and Crash
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn reload_shader(
-        gl: Arc<Context>,
+        gl: GlRef,
         shader: &mut Shader,
         vertex: &'static str,
         fragment: &'static str,
@@ -213,7 +216,7 @@ impl Shader {
         unsafe { self.gl.get_attrib_location(self.handle, name) }
     }
 
-    fn getUniformLocation(&self, name: &str) -> Option<NativeUniformLocation> {
+    fn getUniformLocation(&self, name: &str) -> Option<UniformLocation> {
         unsafe { self.gl.get_uniform_location(self.handle, name) }
     }
 
