@@ -152,7 +152,6 @@ impl Shader {
         }
     }
 
-    //TODO: Add a fallback for when loading the shader fails, don't just unwrap Nothing and Crash
     #[cfg(not(target_arch = "wasm32"))]
     pub fn reload_shader(
         gl: GlRef,
