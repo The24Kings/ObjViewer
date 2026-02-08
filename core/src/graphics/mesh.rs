@@ -6,6 +6,8 @@ use crate::gl_check_error;
 use crate::graphics::{ShaderRef, VEC3};
 use crate::graphics::{VEC2, Vertex};
 
+#[derive(Clone)]
+
 pub struct Mesh {
     pub vao: Option<VertexArray>,
     pub vbo: Option<Buffer>,

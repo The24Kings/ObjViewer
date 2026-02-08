@@ -1,9 +1,10 @@
 use crate::{
-    game::{Renderable, Transform},
+    game::{GameObject, Physical, Renderable, Transform},
     graphics::{Material, Mesh, Vertex},
 };
 use glam::{Mat4, Vec3};
 
+#[derive(Clone)]
 pub struct Light {
     pub material: Material,
     pub mesh: Mesh,
@@ -44,6 +45,28 @@ impl Renderable for Light {
         self.transform.rotation = rotation_x * rotation_z * self.transform.rotation;
     }
 }
+
+impl Physical for Light {
+    fn update(&mut self, dt: f32) {
+        self.transform.position += Vec3::ZERO * dt;
+    }
+
+    fn velocity(&self) -> Vec3 {
+        Vec3::ZERO
+    }
+
+    fn set_velocity(&mut self, _: Vec3) {}
+
+    fn transform(&self) -> &Transform {
+        &self.transform
+    }
+
+    fn transform_mut(&mut self) -> &mut Transform {
+        &mut self.transform
+    }
+}
+
+impl GameObject for Light {}
 
 impl Light {
     pub fn new(material: Material) -> Self {

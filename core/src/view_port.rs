@@ -1,7 +1,5 @@
 use glam::{Mat4, Vec2, Vec3, vec2, vec4};
 use glow::HasContext;
-use std::cell::RefCell;
-use std::rc::Rc;
 use tracing::{error, info};
 use winit::dpi::PhysicalPosition;
 use winit::event::MouseButton;
@@ -13,9 +11,10 @@ use winit_input_helper::WinitInputHelper;
 use crate::game::{Camera, PhysicsManager, Projection, RenderManager};
 #[cfg(not(target_arch = "wasm32"))]
 use crate::graphics::Shader;
+use crate::graphics::types::GameObjectRef;
 use crate::graphics::{
     GlRef, LIGHT_CUBE_FRAG_PATH, LIGHT_CUBE_FRAG_SRC, LIGHT_CUBE_VERT_PATH, LIGHT_CUBE_VERT_SRC,
-    Material, ShaderRef, Texture, TextureRef, WindowRef, new_renderable_ref, new_shader_ref,
+    Material, ShaderRef, Texture, TextureRef, WindowRef, new_game_obj_ref, new_shader_ref,
     new_texture_ref,
 };
 use crate::loaded_shader;
@@ -32,6 +31,7 @@ pub struct ViewPort {
     physics_manager: PhysicsManager,
     projection_matrix: Mat4,
     view_matrix: Mat4,
+    sun: GameObjectRef,
 }
 
 impl ViewPort {
@@ -86,8 +86,8 @@ impl ViewPort {
         light.transform.position = Vec3::new(1.0, 1.0, 1.0);
         light.transform.scale = Vec3::new(0.25, 0.25, 0.25);
 
-        let light = new_renderable_ref(light);
-        renderer.add_renderable(light);
+        let light_ref = new_game_obj_ref(light);
+        renderer.add_renderable(light_ref.clone());
 
         let obj_shader: ShaderRef = {
             let shader = loaded_shader!(gl.clone());
@@ -100,10 +100,10 @@ impl ViewPort {
             .upload(&gl, obj_shader)
             .expect("Failed to upload mesh");
 
-        let cube: Rc<RefCell<Cube>> = Rc::new(RefCell::new(cube));
+        let cube_ref = new_game_obj_ref(cube);
 
-        renderer.add_renderable(cube.clone());
-        physics_manager.add_physical(cube);
+        renderer.add_renderable(cube_ref.clone());
+        physics_manager.add_physical(cube_ref);
 
         camera.transform.position = Vec3::new(0.0, 0.0, 5.0);
 
@@ -125,6 +125,7 @@ impl ViewPort {
 
             projection_matrix,
             view_matrix: Mat4::IDENTITY,
+            sun: light_ref,
         }
     }
 
@@ -245,17 +246,18 @@ impl ViewPort {
                     let current = vec2(cursor.0, cursor.1);
                     let diff = self.last_mouse_pos - current;
 
-                    if diff.length() > 0.0 {
-                        let last_mouse_world_pos =
-                            self.normalize_cursor(self.last_mouse_pos).truncate();
-                        let diff_world_space =
-                            self.normalize_cursor(self.last_mouse_pos + diff).truncate();
-
-                        let diff = last_mouse_world_pos - diff_world_space;
-
-                        self.camera.transform.position.x -= diff.x;
-                        self.camera.transform.position.y -= diff.y;
+                    if !(diff.length() > 0.0) {
+                        return;
                     }
+
+                    let last_world_pos = self.normalize_cursor(self.last_mouse_pos).truncate();
+                    let diff_world_pos =
+                        self.normalize_cursor(self.last_mouse_pos + diff).truncate();
+
+                    let diff = last_world_pos - diff_world_pos;
+
+                    self.sun.borrow_mut().transform_mut().position.x += diff.x;
+                    self.sun.borrow_mut().transform_mut().position.y += diff.y;
 
                     self.last_mouse_pos = current;
                 }
@@ -297,6 +299,6 @@ impl ViewPort {
         // Pass projection * view (vp); each renderable supplies its own model matrix.
         self.view_matrix = self.camera.get_camera_view_matrix();
         let pv = self.projection_matrix * self.view_matrix;
-        self.render_manager.draw(&pv, &self.camera);
+        self.render_manager.draw(&pv, &self.camera, &self.sun);
     }
 }

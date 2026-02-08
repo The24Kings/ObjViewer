@@ -1,7 +1,9 @@
 use glow::{Context, HasContext};
 use std::rc::Rc;
 
-use crate::graphics::{GlRef, ShaderRef, TextureRef, Shader, Texture, new_texture_ref};
+use crate::graphics::{GlRef, Shader, ShaderRef, Texture, TextureRef, new_texture_ref};
+
+#[derive(Clone)]
 
 pub struct Material {
     pub shader: ShaderRef,
@@ -11,8 +13,9 @@ pub struct Material {
 
 impl Material {
     pub fn new(gl: GlRef, shader: ShaderRef) -> Self {
-        let default_texture =
-            new_texture_ref(Texture::white_1x1(gl).expect("Failed to create default white texture"));
+        let default_texture = new_texture_ref(
+            Texture::white_1x1(gl).expect("Failed to create default white texture"),
+        );
         Self {
             shader,
             texture: None,
@@ -31,14 +34,14 @@ impl Material {
     pub fn texture(&self) -> &Texture {
         match &self.texture {
             Some(tex) => tex,
-            None => panic!("No texture attatched to material"),
+            None => panic!("No texture attached to material"),
         }
     }
 
     pub fn texture_mut(&mut self) -> &mut Texture {
         match &mut self.texture {
             Some(tex) => Rc::get_mut(tex).unwrap(),
-            None => panic!("No texture attatched to material"),
+            None => panic!("No texture attached to material"),
         }
     }
 

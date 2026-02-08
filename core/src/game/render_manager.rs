@@ -1,6 +1,7 @@
-use glam::{Mat4, Vec3};
+use glam::Mat4;
 
 use crate::game::Camera;
+use crate::graphics::types::GameObjectRef;
 use crate::graphics::{GlRef, RenderableRef};
 
 pub struct RenderManager {
@@ -27,7 +28,7 @@ impl RenderManager {
         }
     }
 
-    pub fn draw(&mut self, model: &Mat4, camera: &Camera) {
+    pub fn draw(&mut self, model: &Mat4, camera: &Camera, sun: &GameObjectRef) {
         for renderable in &self.render_targets {
             let obj = renderable.borrow();
             let material = obj.material();
@@ -42,9 +43,9 @@ impl RenderManager {
 
             material.shader.setUniform1f("u_ambient", 0.2);
             material.shader.setUniform1f("u_specular", 0.5);
-            material //FIXME: Actually have a light source in the view_port
+            material
                 .shader
-                .setUniform3fv("u_light_pos", &Vec3::new(1.0, 1.0, 1.0));
+                .setUniform3fv("u_light_pos", &sun.borrow().transform().position);
             material
                 .shader
                 .setUniform3fv("u_view_pos", &camera.transform.position);
