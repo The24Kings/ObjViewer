@@ -15,7 +15,7 @@ impl Default for Transform {
             position: Vec3::ZERO,
             rotation: Quat::IDENTITY,
             scale: Vec3::ONE,
-            local_front: Vec3::Z,
+            local_front: -Vec3::Z,
             local_right: Vec3::X,
             local_up: Vec3::Y,
         }

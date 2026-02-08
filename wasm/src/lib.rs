@@ -1,6 +1,5 @@
 #![cfg(target_arch = "wasm32")]
 // Build: wasm-pack build wasm --target web
-// Run (npm): http-server
 // Run (py3): python -m http.server
 
 use core::ViewPort;

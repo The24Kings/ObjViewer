@@ -1,6 +1,5 @@
 #![allow(dead_code)]
 use glow::{HasContext, Program, Shader};
-use std::io::{Error, ErrorKind};
 
 use crate::gl_check_error;
 use crate::graphics::GlRef;
@@ -22,7 +21,7 @@ impl ShaderSource {
         shader_type: u32,
         source: &str,
         filepath: &'static str,
-    ) -> Result<Self, Error> {
+    ) -> Result<Self, String> {
         unsafe {
             let shader = renderer
                 .create_shader(shader_type)
@@ -35,10 +34,7 @@ impl ShaderSource {
 
             if !renderer.get_shader_compile_status(shader) {
                 let e = renderer.get_shader_info_log(shader);
-                return Err(Error::new(
-                    ErrorKind::InvalidData,
-                    format!("Unable to compile shader: {e}"),
-                ));
+                return Err(format!("Unable to compile shader '{filepath}': {e}"));
             }
 
             renderer.attach_shader(program, shader);

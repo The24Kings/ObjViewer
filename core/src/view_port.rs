@@ -1,8 +1,8 @@
 use glam::{Mat4, Vec2, Vec3, vec2, vec4};
 use glow::HasContext;
-use log::info;
 use std::cell::RefCell;
 use std::rc::Rc;
+use tracing::{error, info};
 use winit::dpi::PhysicalPosition;
 use winit::event::MouseButton;
 use winit::event_loop::ActiveEventLoop;
@@ -49,18 +49,17 @@ impl ViewPort {
 
         let light_shader: ShaderRef = {
             let mut shader = crate::graphics::Shader::new(gl.clone());
-            shader
-                .add(
-                    glow::FRAGMENT_SHADER,
-                    LIGHT_CUBE_FRAG_SRC,
-                    LIGHT_CUBE_FRAG_PATH,
-                )
-                .add(
-                    glow::VERTEX_SHADER,
-                    LIGHT_CUBE_VERT_SRC,
-                    LIGHT_CUBE_VERT_PATH,
-                )
-                .link();
+            let _ = shader.add(
+                glow::FRAGMENT_SHADER,
+                LIGHT_CUBE_FRAG_SRC,
+                LIGHT_CUBE_FRAG_PATH,
+            );
+            let _ = shader.add(
+                glow::VERTEX_SHADER,
+                LIGHT_CUBE_VERT_SRC,
+                LIGHT_CUBE_VERT_PATH,
+            );
+            let _ = shader.link();
 
             shader.add_attribute("i_position");
             shader.add_attribute("i_uv");
@@ -189,33 +188,12 @@ impl ViewPort {
 
             self.render_manager.render_targets.iter().for_each(|o| {
                 let mut obj = o.borrow_mut();
-                let to_reload: Vec<(u32, &str)> = obj
-                    .material()
-                    .shader
-                    .sources
-                    .iter()
-                    .map(|s| (s.shader_type, s.filepath))
-                    .collect();
-
                 let shader = obj.material_mut().shader_mut();
 
-                to_reload.chunks(2).for_each(|c| {
-                    let mut vertex = "";
-                    let mut fragment = "";
-
-                    c.iter().for_each(|s| {
-                        let shader_type = s.0;
-                        let path = s.1;
-
-                        match shader_type {
-                            glow::VERTEX_SHADER => vertex = path,
-                            glow::FRAGMENT_SHADER => fragment = path,
-                            _ => panic!("Unsupported shader type"),
-                        }
-                    });
-
-                    Shader::reload_shader(self.gl.clone(), shader, vertex, fragment);
-                });
+                match Shader::reload_shader(self.gl.clone(), shader) {
+                    Ok(_) => info!("Successfully reloaded shader: {:?}", shader.handle),
+                    Err(e) => error!("Failed to reload shader: {}", e),
+                }
             });
         }
 
