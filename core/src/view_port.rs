@@ -148,21 +148,16 @@ impl ViewPort {
     }
 
     fn update_mouse_capture_state(&mut self) {
-        info!("Capturing mouse: {}", self.capture_mouse);
-
-        //FIXME: Sometimes you can get it into a state where you can move and the mouse is still visible
-        if self.capture_mouse {
-            _ = self
-                .window
+        // Only confine and hide cursor in 3D mode with capture enabled
+        let confine = self.capture_mouse && !self.enable_2d;
+        _ = if confine {
+            self.window
                 .set_cursor_grab(CursorGrabMode::Confined)
-                .or_else(|_| self.window.set_cursor_grab(CursorGrabMode::Locked));
-            self.window.set_cursor_visible(false);
-        }
-
-        if self.enable_2d || !self.capture_mouse {
-            _ = self.window.set_cursor_grab(CursorGrabMode::None);
-            self.window.set_cursor_visible(true);
-        }
+                .or_else(|_| self.window.set_cursor_grab(CursorGrabMode::Locked))
+        } else {
+            self.window.set_cursor_grab(CursorGrabMode::None)
+        };
+        self.window.set_cursor_visible(!confine);
     }
 
     pub fn handle_input(
@@ -176,11 +171,18 @@ impl ViewPort {
             _event_loop.exit();
         }
         if input.key_pressed(KeyCode::F1) {
-            self.enable_2d = !self.enable_2d;
-            self.set_projection_matrix();
+            self.capture_mouse = !self.capture_mouse;
+            self.update_mouse_capture_state();
+            info!("Capturing mouse: {}", self.capture_mouse);
         }
         if input.key_pressed(KeyCode::F2) {
-            self.capture_mouse = !self.capture_mouse;
+            self.enable_2d = true;
+            self.set_projection_matrix();
+            self.update_mouse_capture_state();
+        }
+        if input.key_pressed(KeyCode::F3) {
+            self.enable_2d = false;
+            self.set_projection_matrix();
             self.update_mouse_capture_state();
         }
         #[cfg(not(target_arch = "wasm32"))]
