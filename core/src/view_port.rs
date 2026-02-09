@@ -139,7 +139,7 @@ impl ViewPort {
         let aspect = size.width as f32 / size.height as f32;
 
         let projection = if self.enable_2d {
-            Projection::Orthographic(aspect * -1.0, aspect, -1.0, 1.0)
+            Projection::Orthographic(aspect)
         } else {
             Projection::Perspective(aspect)
         };

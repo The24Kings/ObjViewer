@@ -22,7 +22,7 @@ impl Frustum {
 
 pub enum Projection {
     Perspective(f32),
-    Orthographic(f32, f32, f32, f32),
+    Orthographic(f32),
 }
 
 #[derive(Default)]
@@ -107,14 +107,15 @@ impl Camera {
                 self.frustum.near,
                 self.frustum.far,
             ),
-            Projection::Orthographic(left, right, bottom, top) => {
-                let fov = fov / 16.0;
+            Projection::Orthographic(aspect) => {
+                let vertical = fov / 16.0;
+                let horizontal = vertical * aspect;
 
                 Mat4::orthographic_rh(
-                    left * fov,
-                    right * fov,
-                    bottom * fov,
-                    top * fov,
+                    -horizontal,
+                    horizontal,
+                    -vertical,
+                    vertical,
                     self.frustum.near,
                     self.frustum.far,
                 )
