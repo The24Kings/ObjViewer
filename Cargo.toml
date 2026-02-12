@@ -1,5 +1,5 @@
 [workspace]
-members = ["core", "native", "wasm"]
+members = ["app", "core", "native", "wasm"]
 resolver = "3"
 
 [workspace.package]
@@ -23,3 +23,7 @@ tracing = { version = "0.1.44", features = ["log"] }
 tracing-subscriber = { version = "0.3.22", features = ["time"] }
 log = "0.4.29"
 image = "0.25.9"
+
+dear-imgui-rs = { version = "0.8.0", features = ["glam"] }
+dear-imgui-winit = "0.8.0"
+dear-imgui-glow = "0.8.0"

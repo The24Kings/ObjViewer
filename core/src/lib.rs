@@ -1,11 +1,26 @@
 pub mod game;
 pub mod graphics;
 pub mod objects;
+pub mod platform;
 mod view_port;
 
-pub use self::view_port::ViewPort;
+use std::rc::Rc;
 
 use glow::{Context, HasContext};
+use winit::window::Window;
+use winit_input_helper::WinitInputHelper;
+
+pub use self::platform::PlatformBackend;
+pub use self::view_port::ViewPort;
+
+/// Shared state that exists on all platforms.
+pub struct State {
+    pub window: Rc<Window>,
+    pub input: WinitInputHelper,
+    pub view_port: ViewPort,
+    pub request_redraw: bool,
+    pub wait_cancelled: bool,
+}
 
 // Helper to check for GL errors at runtime. Mirrors the behavior of the
 // C-style `glCheckError()` helper: it polls `gl.get_error()` and prints

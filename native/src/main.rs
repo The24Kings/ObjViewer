@@ -1,75 +1,40 @@
 #![allow(non_snake_case)]
 
+mod context;
+
+use std::error::Error;
+use std::num::NonZeroU32;
+use std::rc::Rc;
+use std::time::Duration;
+
 use glutin::config::ConfigTemplateBuilder;
-use glutin::context::{ContextApi, ContextAttributesBuilder, PossiblyCurrentContext};
+use glutin::context::{ContextApi, ContextAttributesBuilder};
 use glutin::display::GetGlDisplay;
 use glutin::prelude::*;
-use glutin::surface::{Surface, WindowSurface};
 use glutin_winit::{DisplayBuilder, GlWindow};
 use log::info;
 use raw_window_handle::{HasWindowHandle, RawWindowHandle};
-use std::num::NonZeroU32;
-use std::rc::Rc;
-use std::time::{Duration, Instant};
 use time::{UtcOffset, format_description::parse};
 use tracing_subscriber::fmt::time::OffsetTime;
-use winit::application::ApplicationHandler;
 use winit::dpi::PhysicalSize;
-use winit::event::{DeviceEvent, DeviceId, StartCause, WindowEvent};
+use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
-use winit::window::{Window, WindowAttributes, WindowId};
+use winit::window::WindowAttributes;
 use winit_input_helper::WinitInputHelper;
 
-use core::ViewPort;
+use app::{App, FPS, HEIGHT, WIDTH};
+use core::{PlatformBackend, State, ViewPort};
 
-const WIDTH: u32 = 1920;
-const HEIGHT: u32 = 1080;
+use context::NativeContext;
 
-const FPS: u32 = 60;
-
-struct State {
-    glSurface: Surface<WindowSurface>,
-    glContext: PossiblyCurrentContext,
-    view_port: ViewPort,
+/// Native platform backend using glutin/OpenGL.
+pub struct NativeBackend {
+    state: State,
+    context: NativeContext,
 }
 
-struct App {
-    window: Option<Rc<Window>>,
-    state: Option<State>,
-    input: WinitInputHelper,
-    request_redraw: bool,
-    wait_cancelled: bool,
-    instant: Instant,
-}
-
-impl Default for App {
-    fn default() -> Self {
-        App {
-            window: None,
-            state: None,
-            input: WinitInputHelper::new(),
-            request_redraw: false,
-            wait_cancelled: false,
-            instant: Instant::now(),
-        }
-    }
-}
-
-impl ApplicationHandler for App {
-    fn new_events(&mut self, _event_loop: &ActiveEventLoop, cause: StartCause) {
-        self.input.step();
-
-        self.wait_cancelled = match cause {
-            StartCause::WaitCancelled { .. } => true,
-            _ => false,
-        }
-    }
-
-    fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        if self.state.is_some() {
-            return;
-        }
-
+impl PlatformBackend for NativeBackend {
+    fn new(event_loop: &ActiveEventLoop) -> Result<Self, Box<dyn Error>> {
         let attributes = WindowAttributes::default()
             .with_inner_size(PhysicalSize::new(WIDTH, HEIGHT))
             .with_title("Obj Viewer");
@@ -95,7 +60,7 @@ impl ApplicationHandler for App {
             .and_then(|w| w.window_handle().map(Into::into).ok());
 
         let glDisplay = glConfig.display();
-        let contextAttributes = ContextAttributesBuilder::new()
+        let context_attributes = ContextAttributesBuilder::new()
             .with_context_api(ContextApi::OpenGl(Some(glutin::context::Version {
                 major: 4,
                 minor: 1,
@@ -103,97 +68,95 @@ impl ApplicationHandler for App {
             .build(rwh);
 
         let (window, gl, glSurface, glContext) = unsafe {
-            let notCurrentGlContext = glDisplay
-                .create_context(&glConfig, &contextAttributes)
+            let glContext = glDisplay
+                .create_context(&glConfig, &context_attributes)
                 .unwrap();
             let window = Rc::new(window.unwrap());
 
-            let surfaceAttributes = window.build_surface_attributes(Default::default()).unwrap();
+            let surface_attributes = window.build_surface_attributes(Default::default()).unwrap();
             let glSurface = glDisplay
-                .create_window_surface(&glConfig, &surfaceAttributes)
+                .create_window_surface(&glConfig, &surface_attributes)
                 .unwrap();
 
-            let glContext = notCurrentGlContext.make_current(&glSurface).unwrap();
-            let gl = Rc::new(glow::Context::from_loader_function_cstr(|s| {
-                glDisplay.get_proc_address(s)
-            }));
+            let glContext = glContext.make_current(&glSurface).unwrap();
+            let gl = glow::Context::from_loader_function_cstr(|s| glDisplay.get_proc_address(s));
 
             (window, gl, glSurface, glContext)
         };
 
+        // ImGui context
+        let mut context = NativeContext::new(gl, glSurface, glContext);
+        context.attach_window(&window);
+        info!("Imgui initialized");
+
+        let gl = context.gl_context().unwrap();
         let view_port = ViewPort::new(window.clone(), gl.clone(), (WIDTH, HEIGHT));
 
-        self.window = Some(window.clone());
-        self.state = Some(State {
-            glSurface,
-            glContext,
+        let state = State {
+            window,
+            input: WinitInputHelper::new(),
             view_port,
-        });
+            request_redraw: false,
+            wait_cancelled: false,
+        };
+
+        Ok(Self { state, context })
     }
 
-    fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
-        self.input.process_window_event(&event);
-        match event {
-            WindowEvent::Resized(size) => {
-                self.request_redraw = true;
-                if let Some(ref mut state) = self.state {
-                    state.glSurface.resize(
-                        &state.glContext,
-                        NonZeroU32::new(size.width).unwrap(),
-                        NonZeroU32::new(size.height).unwrap(),
-                    );
-                    state.view_port.resize(size.width, size.height);
-                }
-            }
-            WindowEvent::CloseRequested => {
-                info!("The close button was pressed; stopping");
-                event_loop.exit();
-            }
-            WindowEvent::RedrawRequested => {
-                if let Some(ref mut state) = self.state {
-                    state.view_port.render();
-                    state.glSurface.swap_buffers(&state.glContext).unwrap();
-                }
-            }
-            _ => (),
-        }
+    fn resize(&mut self, size: PhysicalSize<u32>) {
+        self.state.request_redraw = true;
+        let (width, height) = (size.width.max(1), size.height.max(1));
+        self.context.glSurface.resize(
+            &self.context.glContext,
+            NonZeroU32::new(width).unwrap(),
+            NonZeroU32::new(height).unwrap(),
+        );
+        self.state.view_port.resize(width, height);
     }
 
-    fn device_event(&mut self, _event_loop: &ActiveEventLoop, _id: DeviceId, event: DeviceEvent) {
-        self.input.process_device_event(&event);
+    fn swap_buffers(&self) {
+        self.context
+            .glSurface
+            .swap_buffers(&self.context.glContext)
+            .unwrap();
     }
 
-    fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
-        self.input.end_step();
-
-        if let Some(ref mut state) = self.state {
-            let dt = self.instant.elapsed().as_secs_f32();
-            state.view_port.handle_input(dt, &self.input, event_loop);
-        }
-
-        if self.request_redraw && !self.wait_cancelled {
-            self.window.as_ref().unwrap().request_redraw();
-            self.request_redraw = false;
-
-            let dt = self.instant.elapsed().as_secs_f32();
-            if let Some(ref mut state) = self.state {
-                state.view_port.update(dt);
-            }
-        }
-
-        if !self.wait_cancelled {
-            self.instant = Instant::now();
-            event_loop.set_control_flow(ControlFlow::WaitUntil(
-                self.instant + Duration::from_secs_f64(1.0 / FPS as f64),
-            ));
-            self.request_redraw = true;
-        }
+    fn state(&mut self) -> &mut State {
+        &mut self.state
     }
 
-    fn exiting(&mut self, _event_loop: &ActiveEventLoop) {
-        // if let Some(ref mut state) = self.state {
-        //     state.view_port.destroy();
-        // }
+    fn clear_color(&self) -> [f32; 4] {
+        self.context.clear_color
+    }
+
+    fn dt(&self) -> f32 {
+        self.context.dt()
+    }
+
+    fn tick(&mut self) {
+        self.context.tick();
+    }
+
+    fn handle_ui_event(&mut self, event: &WindowEvent) {
+        self.context.handle_event(&self.state.window, event);
+    }
+
+    fn render_ui(&mut self) {
+        let input_cursor = self.state.input.cursor().unwrap_or((0.0, 0.0));
+        let window_size = self.state.window.inner_size();
+
+        self.context.render_ui(
+            &self.state.window,
+            &mut self.state.view_port,
+            input_cursor,
+            (window_size.width, window_size.height),
+        );
+    }
+
+    fn set_control_flow(&self, event_loop: &ActiveEventLoop) {
+        event_loop.set_control_flow(ControlFlow::WaitUntil(
+            self.context.instant() + Duration::from_secs_f64(1.0 / FPS as f64),
+        ));
     }
 }
 
@@ -214,7 +177,5 @@ fn main() {
         .init();
 
     let event_loop = EventLoop::new().unwrap();
-    event_loop
-        .run_app(&mut App::default())
-        .expect("Failed to run event loop");
+    App::<NativeBackend>::run(event_loop);
 }

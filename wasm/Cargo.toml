@@ -9,6 +9,7 @@ repository.workspace = true
 crate-type = ["cdylib"]
 
 [dependencies]
+app = { path = "../app" }
 core = { path = "../core" }
 glow.workspace = true
 winit.workspace = true

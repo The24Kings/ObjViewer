@@ -2,66 +2,36 @@
 // Build: wasm-pack build wasm --target web
 // Run (py3): python3 -m http.server
 
-use core::ViewPort;
-use log::info;
+mod context;
+
+use std::error::Error;
 use std::rc::Rc;
 use std::time::Duration;
+
+use glow::HasContext;
+use log::info;
 use wasm_bindgen::{self, prelude::*};
 use web_sys::WebGl2RenderingContext;
-use web_time::Instant;
-use winit::application::ApplicationHandler;
-use winit::event::{DeviceEvent, DeviceId, StartCause, WindowEvent};
+use winit::dpi::PhysicalSize;
+use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::platform::web::WindowAttributesExtWebSys;
-use winit::window::{Window, WindowAttributes, WindowId};
+use winit::window::WindowAttributes;
 use winit_input_helper::WinitInputHelper;
 
-const WIDTH: u32 = 1920;
-const HEIGHT: u32 = 1080;
+use app::{App, FPS, HEIGHT, WIDTH};
+use core::{PlatformBackend, State, ViewPort};
 
-const FPS: u32 = 60;
+use context::WasmContext;
 
-struct State {
-    view_port: ViewPort,
+/// WASM platform backend using WebGL2.
+pub struct WasmBackend {
+    state: State,
+    context: WasmContext,
 }
 
-struct App {
-    window: Option<Rc<Window>>,
-    state: Option<State>,
-    input: WinitInputHelper,
-    request_redraw: bool,
-    wait_cancelled: bool,
-    instant: Instant,
-}
-
-impl Default for App {
-    fn default() -> Self {
-        App {
-            window: None,
-            state: None,
-            input: WinitInputHelper::new(),
-            request_redraw: false,
-            wait_cancelled: false,
-            instant: Instant::now(),
-        }
-    }
-}
-
-impl ApplicationHandler for App {
-    fn new_events(&mut self, _event_loop: &ActiveEventLoop, cause: StartCause) {
-        self.input.step();
-
-        self.wait_cancelled = match cause {
-            StartCause::WaitCancelled { .. } => true,
-            _ => false,
-        }
-    }
-
-    fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        if self.state.is_some() {
-            return;
-        }
-
+impl PlatformBackend for WasmBackend {
+    fn new(event_loop: &ActiveEventLoop) -> Result<Self, Box<dyn Error>> {
         event_loop.set_control_flow(ControlFlow::Poll);
 
         let web_window = web_sys::window().unwrap();
@@ -78,7 +48,7 @@ impl ApplicationHandler for App {
             .unwrap()
             .dyn_into::<WebGl2RenderingContext>()
             .unwrap();
-        let gl = Rc::new(glow::Context::from_webgl2_context(web_gl_context));
+        let gl = glow::Context::from_webgl2_context(web_gl_context);
 
         let attributes = WindowAttributes::default()
             .with_title("Obj Viewer")
@@ -86,78 +56,77 @@ impl ApplicationHandler for App {
         let window = event_loop.create_window(attributes).unwrap();
         let window = Rc::new(window);
 
+        info!("WebGL2 context initialized");
+
+        let context = WasmContext::new(gl);
+
+        let gl = context.gl_context();
         let view_port = ViewPort::new(window.clone(), gl.clone(), (WIDTH, HEIGHT));
 
-        self.window = Some(window.clone());
-        self.state = Some(State { view_port })
+        let state = State {
+            window,
+            input: WinitInputHelper::new(),
+            view_port,
+            request_redraw: false,
+            wait_cancelled: false,
+        };
+
+        Ok(Self { state, context })
     }
 
-    fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
-        self.input.process_window_event(&event);
-        match event {
-            WindowEvent::Resized(size) => {
-                self.request_redraw = true;
-                if let Some(ref mut state) = self.state {
-                    // Update canvas dimensions (equivalent to glSurface.resize on native)
-                    let web_window = web_sys::window().unwrap();
-                    let document = web_window.document().unwrap();
-                    if let Some(canvas) = document.get_element_by_id("canvas") {
-                        if let Ok(canvas) = canvas.dyn_into::<web_sys::HtmlCanvasElement>() {
-                            canvas.set_width(size.width);
-                            canvas.set_height(size.height);
-                        }
-                    }
-                    state.view_port.resize(size.width, size.height);
-                }
-            }
-            WindowEvent::CloseRequested => {
-                info!("The close button was pressed; stopping");
-                event_loop.exit();
-            }
-            WindowEvent::RedrawRequested => {
-                if let Some(ref mut state) = self.state {
-                    state.view_port.render();
-                }
-            }
-            _ => (),
-        }
-    }
+    fn resize(&mut self, size: PhysicalSize<u32>) {
+        self.state.request_redraw = true;
+        let (width, height) = (size.width.max(1), size.height.max(1));
 
-    fn device_event(&mut self, _event_loop: &ActiveEventLoop, _id: DeviceId, event: DeviceEvent) {
-        self.input.process_device_event(&event);
-    }
-
-    fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
-        self.input.end_step();
-
-        if let Some(ref mut state) = self.state {
-            let dt = self.instant.elapsed().as_secs_f32();
-            state.view_port.handle_input(dt, &self.input, event_loop);
-        }
-
-        if self.request_redraw && !self.wait_cancelled {
-            self.window.as_ref().unwrap().request_redraw();
-            self.request_redraw = false;
-
-            let dt = self.instant.elapsed().as_secs_f32();
-            if let Some(ref mut state) = self.state {
-                state.view_port.update(dt);
+        // Update canvas dimensions
+        let web_window = web_sys::window().unwrap();
+        let document = web_window.document().unwrap();
+        if let Some(canvas) = document.get_element_by_id("canvas") {
+            if let Ok(canvas) = canvas.dyn_into::<web_sys::HtmlCanvasElement>() {
+                canvas.set_width(width);
+                canvas.set_height(height);
             }
         }
 
-        if !self.wait_cancelled {
-            self.instant = Instant::now();
-            event_loop.set_control_flow(ControlFlow::WaitUntil(
-                self.instant + Duration::from_secs_f64(1.0 / FPS as f64),
-            ));
-            self.request_redraw = true;
+        unsafe {
+            self.context.gl.viewport(0, 0, width as i32, height as i32);
         }
+
+        self.state.view_port.resize(width, height);
     }
 
-    fn exiting(&mut self, _event_loop: &ActiveEventLoop) {
-        // if let Some(ref mut state) = self.state {
-        //     state.view_port.destroy();
-        // }
+    fn swap_buffers(&self) {
+        // No-op for WebGL
+    }
+
+    fn shared(&mut self) -> &mut State {
+        &mut self.state
+    }
+
+    fn clear_color(&self) -> [f32; 4] {
+        self.context.clear_color
+    }
+
+    fn dt(&self) -> f32 {
+        self.context.dt()
+    }
+
+    fn tick(&mut self) {
+        self.context.tick();
+    }
+
+    fn handle_ui_event(&mut self, _event: &WindowEvent) {
+        // No-op for wasm
+    }
+
+    fn render_ui(&mut self) {
+        // No-op for wasm
+    }
+
+    fn set_control_flow(&self, event_loop: &ActiveEventLoop) {
+        event_loop.set_control_flow(ControlFlow::WaitUntil(
+            self.context.instant() + Duration::from_secs_f64(1.0 / FPS as f64),
+        ));
     }
 }
 
@@ -169,9 +138,7 @@ pub fn main() -> Result<(), JsValue> {
     panic::set_hook(Box::new(console_error_panic_hook::hook));
 
     let event_loop = EventLoop::new().unwrap();
-    event_loop
-        .run_app(&mut App::default())
-        .expect("Failed to run event loop");
+    App::<WasmBackend>::run(event_loop);
 
     Ok(())
 }

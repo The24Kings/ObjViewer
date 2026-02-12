@@ -6,6 +6,7 @@ edition.workspace = true
 repository.workspace = true
 
 [dependencies]
+app = { path = "../app" }
 core = { path = "../core" }
 
 glow.workspace = true
@@ -18,3 +19,7 @@ raw-window-handle.workspace = true
 winit.workspace = true
 winit_input_helper.workspace = true
 log.workspace = true
+
+dear-imgui-rs.workspace = true
+dear-imgui-winit.workspace = true
+dear-imgui-glow.workspace = true

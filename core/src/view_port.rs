@@ -1,6 +1,10 @@
+#[cfg(not(target_arch = "wasm32"))]
+use dear_imgui_rs::{TreeNodeFlags, Ui};
 use glam::{Mat4, Vec2, Vec3, vec2, vec4};
 use glow::HasContext;
-use tracing::{error, info};
+#[cfg(not(target_arch = "wasm32"))]
+use log::error;
+use log::info;
 use winit::dpi::PhysicalPosition;
 use winit::event::MouseButton;
 use winit::event_loop::ActiveEventLoop;
@@ -23,10 +27,12 @@ use crate::objects::{Cube, Light};
 pub struct ViewPort {
     window: WindowRef,
     gl: GlRef,
+
     camera: Camera,
     enable_2d: bool,
     capture_mouse: bool,
     last_mouse_pos: Vec2,
+
     render_manager: RenderManager,
     physics_manager: PhysicsManager,
     projection_matrix: Mat4,
@@ -291,16 +297,39 @@ impl ViewPort {
         self.render_manager.update(dt);
     }
 
-    pub fn render(&mut self) {
+    pub fn render(&mut self, clear_color: [f32; 4]) {
         unsafe {
             self.gl
                 .clear(glow::COLOR_BUFFER_BIT | glow::DEPTH_BUFFER_BIT);
-            self.gl.clear_color(0.0, 0.0, 0.0, 1.0);
+            self.gl.clear_color(
+                clear_color[0],
+                clear_color[1],
+                clear_color[2],
+                clear_color[3],
+            );
         }
 
-        // Pass projection * view (vp); each renderable supplies its own model matrix.
         self.view_matrix = self.camera.get_camera_view_matrix();
         let pv = self.projection_matrix * self.view_matrix;
         self.render_manager.draw(&pv, &self.camera, &self.sun);
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn gui(&mut self, ui: &mut Ui) {
+        ui.window("Viewport").build(|| {
+            if ui.collapsing_header("Camera", TreeNodeFlags::COLLAPSING_HEADER) {
+                ui.text(format!(
+                    "Position: ({}, {})",
+                    self.camera.transform.position.x, self.camera.transform.position.y
+                ));
+                ui.text(format!("Zoom: {}", self.camera.frustum.fov));
+
+                if ui.small_button("Reset") {
+                    self.camera.transform.position = Vec3::ZERO;
+                    self.camera.frustum.fov = 45.0;
+                    self.set_projection_matrix();
+                }
+            }
+        });
     }
 }

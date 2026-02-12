@@ -1,0 +1,16 @@
+[package]
+name = "app"
+description = "Shared application logic and event handling"
+version = "0.1.0"
+edition.workspace = true
+repository.workspace = true
+
+[lib]
+crate-type = ["rlib"]
+
+[dependencies]
+core = { path = "../core" }
+
+winit.workspace = true
+winit_input_helper.workspace = true
+log.workspace = true

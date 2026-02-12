@@ -18,3 +18,11 @@ tracing.workspace = true
 log.workspace = true
 
 bytemuck = "1.24.0"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+dear-imgui-rs.workspace = true
+dear-imgui-winit.workspace = true
+dear-imgui-glow.workspace = true
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+web-time = "1.1.0"
