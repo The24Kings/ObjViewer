@@ -7,7 +7,7 @@ use std::rc::Rc;
 use winit::window::Window;
 
 use super::{Shader, Texture};
-use crate::game::{GameObject, Physical, Renderable};
+use crate::game::{GameObject, GlobalLight, Physical, Renderable};
 
 /// Reference-counted pointer to a Window
 pub type WindowRef = Rc<Window>;
@@ -29,6 +29,9 @@ pub type PhysicalRef = Rc<RefCell<dyn Physical>>;
 
 // Reference-counted pointer to a Game Object trait object
 pub type GameObjectRef = Rc<RefCell<dyn GameObject>>;
+
+// Reference-counted pointer to a Game Object trait object
+pub type LightObjectRef = Rc<RefCell<dyn GlobalLight>>;
 
 /// Helper to create a new GlRef
 pub fn new_gl_ref(ctx: Context) -> GlRef {
@@ -56,5 +59,9 @@ pub fn new_physical_ref<T: Physical + 'static>(physical: T) -> PhysicalRef {
 }
 
 pub fn new_game_obj_ref<T: GameObject + 'static>(object: T) -> GameObjectRef {
+    Rc::new(RefCell::new(object))
+}
+
+pub fn new_light_obj_ref<T: GlobalLight + 'static>(object: T) -> LightObjectRef {
     Rc::new(RefCell::new(object))
 }

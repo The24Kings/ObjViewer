@@ -15,7 +15,7 @@ use winit_input_helper::WinitInputHelper;
 use crate::game::{Camera, PhysicsManager, Projection, RenderManager};
 #[cfg(not(target_arch = "wasm32"))]
 use crate::graphics::Shader;
-use crate::graphics::types::GameObjectRef;
+use crate::graphics::types::{LightObjectRef, new_light_obj_ref};
 use crate::graphics::{
     GlRef, LIGHT_CUBE_FRAG_PATH, LIGHT_CUBE_FRAG_SRC, LIGHT_CUBE_VERT_PATH, LIGHT_CUBE_VERT_SRC,
     Material, ShaderRef, Texture, TextureRef, WindowRef, new_game_obj_ref, new_shader_ref,
@@ -37,7 +37,7 @@ pub struct ViewPort {
     physics_manager: PhysicsManager,
     projection_matrix: Mat4,
     view_matrix: Mat4,
-    sun: GameObjectRef,
+    sun: LightObjectRef,
 }
 
 impl ViewPort {
@@ -92,7 +92,7 @@ impl ViewPort {
         light.transform.position = Vec3::new(1.0, 1.0, 1.0);
         light.transform.scale = Vec3::new(0.25, 0.25, 0.25);
 
-        let light_ref = new_game_obj_ref(light);
+        let light_ref = new_light_obj_ref(light);
         renderer.add_renderable(light_ref.clone());
 
         let obj_shader: ShaderRef = {
@@ -319,15 +319,48 @@ impl ViewPort {
         ui.window("Viewport").build(|| {
             if ui.collapsing_header("Camera", TreeNodeFlags::COLLAPSING_HEADER) {
                 ui.text(format!(
-                    "Position: ({}, {})",
-                    self.camera.transform.position.x, self.camera.transform.position.y
+                    "Position: ({}, {}, {})",
+                    self.camera.transform.position.x,
+                    self.camera.transform.position.y,
+                    self.camera.transform.position.z
                 ));
+
+                ui.separator();
+
+                ui.text(format!("Pitch: {}", self.camera.pitch));
+                ui.text(format!("Yaw: {}", self.camera.yaw));
                 ui.text(format!("Zoom: {}", self.camera.frustum.fov));
 
-                if ui.small_button("Reset") {
-                    self.camera.transform.position = Vec3::ZERO;
+                ui.separator();
+
+                if ui.small_button("Reset##Camera") {
+                    self.camera.transform.position = Vec3::new(0.0, 0.0, 5.0);
                     self.camera.frustum.fov = 45.0;
                     self.set_projection_matrix();
+                }
+            }
+
+            if ui.collapsing_header("Sun", TreeNodeFlags::COLLAPSING_HEADER) {
+                let mut sun = self.sun.borrow_mut();
+                let transform = sun.transform_mut();
+
+                let mut position = transform.position.to_array();
+
+                if ui.input_float3("Position", &mut position).build() {
+                    transform.position = position.into();
+                }
+
+                ui.separator();
+
+                ui.slider_f32("Ambient", &mut sun.ambient_mut(), 0.0, 1.0);
+                ui.slider_f32("Specular", &mut sun.specular_mut(), 0.0, 1.0);
+
+                ui.separator();
+
+                if ui.small_button("Reset##Sun") {
+                    sun.transform_mut().position = Vec3::new(1.0, 1.0, 1.0);
+                    *sun.ambient_mut() = 0.2;
+                    *sun.specular_mut() = 0.5;
                 }
             }
         });

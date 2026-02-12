@@ -17,7 +17,18 @@ pub use transform::Transform;
 // Re-export type aliases from graphics for convenience
 pub use crate::graphics::{GlRef, PhysicalRef, RenderableRef};
 
-/// A super-trait for objects that need both rendering and physics capabilities.
-/// Objects like `Cube` implement this. Render-only objects (like `Light`) only
-/// implement `Renderable`. Invisible physical objects only implement `Physical`.
 pub trait GameObject: Renderable + Physical {}
+
+pub trait GlobalLight: Renderable + Physical {
+    fn ambient(&self) -> f32 {
+        1.0
+    }
+
+    fn specular(&self) -> f32 {
+        0.0
+    }
+
+    fn ambient_mut(&mut self) -> &mut f32;
+
+    fn specular_mut(&mut self) -> &mut f32;
+}

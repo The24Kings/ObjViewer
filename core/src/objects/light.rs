@@ -1,5 +1,5 @@
 use crate::{
-    game::{GameObject, Physical, Renderable, Transform},
+    game::{GlobalLight, Physical, Renderable, Transform},
     graphics::{Material, Mesh, Vertex},
 };
 use glam::{Mat4, Vec3};
@@ -9,6 +9,9 @@ pub struct Light {
     pub material: Material,
     pub mesh: Mesh,
     pub transform: Transform,
+
+    ambient: f32,
+    specular: f32,
 }
 
 impl Renderable for Light {
@@ -66,7 +69,23 @@ impl Physical for Light {
     }
 }
 
-impl GameObject for Light {}
+impl GlobalLight for Light {
+    fn ambient(&self) -> f32 {
+        self.ambient
+    }
+
+    fn specular(&self) -> f32 {
+        self.specular
+    }
+
+    fn ambient_mut(&mut self) -> &mut f32 {
+        &mut self.ambient
+    }
+
+    fn specular_mut(&mut self) -> &mut f32 {
+        &mut self.specular
+    }
+}
 
 impl Light {
     pub fn new(material: Material) -> Self {
@@ -84,6 +103,9 @@ impl Light {
             material,
             mesh,
             transform: Transform::default(),
+
+            ambient: 0.2,
+            specular: 0.5,
         }
     }
 

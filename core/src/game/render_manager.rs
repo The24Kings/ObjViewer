@@ -1,7 +1,7 @@
 use glam::Mat4;
 
 use crate::game::Camera;
-use crate::graphics::types::GameObjectRef;
+use crate::graphics::types::LightObjectRef;
 use crate::graphics::{GlRef, RenderableRef};
 
 pub struct RenderManager {
@@ -28,7 +28,7 @@ impl RenderManager {
         }
     }
 
-    pub fn draw(&mut self, model: &Mat4, camera: &Camera, sun: &GameObjectRef) {
+    pub fn draw(&mut self, model: &Mat4, camera: &Camera, sun: &LightObjectRef) {
         for renderable in &self.render_targets {
             let obj = renderable.borrow();
             let material = obj.material();
@@ -41,8 +41,12 @@ impl RenderManager {
             material.shader.setUniform4fm("model", &obj.model_matrix());
             material.shader.setUniform1i("u_texture", 0); // Replace in the future with tex.unit for PBR
 
-            material.shader.setUniform1f("u_ambient", 0.2);
-            material.shader.setUniform1f("u_specular", 0.5);
+            material
+                .shader
+                .setUniform1f("u_ambient", sun.borrow().ambient());
+            material
+                .shader
+                .setUniform1f("u_specular", sun.borrow().specular());
             material
                 .shader
                 .setUniform3fv("u_light_pos", &sun.borrow().transform().position);
