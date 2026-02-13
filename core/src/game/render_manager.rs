@@ -1,20 +1,44 @@
-use glam::Mat4;
+use bytemuck::{Pod, Zeroable};
+use glam::{Mat4, Vec3};
+use std::sync::Arc;
 
 use crate::game::Camera;
+use crate::graphics::RenderableRef;
 use crate::graphics::types::LightObjectRef;
-use crate::graphics::{GlRef, RenderableRef};
+
+/// Uniform data for the loaded-object shader (Phong lighting).
+/// Must match the WGSL `Uniforms` struct in loaded_obj.wgsl.
+#[repr(C)]
+#[derive(Copy, Clone, Pod, Zeroable)]
+pub struct ObjUniforms {
+    pub pv: Mat4,
+    pub model: Mat4,
+    pub light_pos: Vec3,
+    pub ambient: f32,
+    pub view_pos: Vec3,
+    pub specular: f32,
+}
+
+/// Uniform data for the light-cube shader (no lighting).
+/// Must match the WGSL `Uniforms` struct in light_cube.wgsl.
+#[repr(C)]
+#[derive(Copy, Clone, Pod, Zeroable)]
+pub struct LightUniforms {
+    pub pv: Mat4,
+    pub model: Mat4,
+}
 
 pub struct RenderManager {
-    gl: GlRef,
     pub render_targets: Vec<RenderableRef>,
+    queue: Arc<wgpu::Queue>,
 }
 
 impl RenderManager {
-    pub fn new(gl: GlRef) -> Result<Self, String> {
-        Ok(Self {
-            gl,
+    pub fn new(queue: Arc<wgpu::Queue>) -> Self {
+        Self {
             render_targets: Vec::new(),
-        })
+            queue,
+        }
     }
 
     pub fn add_renderable(&mut self, renderable: RenderableRef) {
@@ -28,34 +52,51 @@ impl RenderManager {
         }
     }
 
-    pub fn draw(&mut self, model: &Mat4, camera: &Camera, sun: &LightObjectRef) {
+    /// Record draw commands into the given render pass.
+    ///
+    /// For each renderable we write its uniform data and issue draw calls.
+    pub fn draw(
+        &self,
+        rpass: &mut wgpu::RenderPass<'_>,
+        pv: &Mat4,
+        camera: &Camera,
+        sun: &LightObjectRef,
+    ) {
+        let sun_ref = sun.borrow();
+
         for renderable in &self.render_targets {
             let obj = renderable.borrow();
             let material = obj.material();
             let mesh = obj.mesh();
 
-            material.apply(&self.gl);
+            // Determine uniform size: if this material's pipeline matches
+            // the light pipeline it uses `LightUniforms`, else `ObjUniforms`.
+            let uniform_size = material.uniform_buffer.size();
 
-            // Set uniforms
-            material.shader.setUniform4fm("pv", model);
-            material.shader.setUniform4fm("model", &obj.model_matrix());
-            material.shader.setUniform1i("u_texture", 0); // Replace in the future with tex.unit for PBR
+            if uniform_size == std::mem::size_of::<LightUniforms>() as u64 {
+                let uniforms = LightUniforms {
+                    pv: *pv,
+                    model: obj.model_matrix(),
+                };
+                self.queue
+                    .write_buffer(&material.uniform_buffer, 0, bytemuck::bytes_of(&uniforms));
+            } else {
+                let uniforms = ObjUniforms {
+                    pv: *pv,
+                    model: obj.model_matrix(),
+                    light_pos: sun_ref.transform().position,
+                    ambient: sun_ref.ambient(),
+                    view_pos: camera.transform.position,
+                    specular: sun_ref.specular(),
+                };
 
-            material
-                .shader
-                .setUniform1f("u_ambient", sun.borrow().ambient());
-            material
-                .shader
-                .setUniform1f("u_specular", sun.borrow().specular());
-            material
-                .shader
-                .setUniform3fv("u_light_pos", &sun.borrow().transform().position);
-            material
-                .shader
-                .setUniform3fv("u_view_pos", &camera.transform.position);
+                self.queue
+                    .write_buffer(&material.uniform_buffer, 0, bytemuck::bytes_of(&uniforms));
+            }
 
-            // Draw mesh
-            mesh.draw(&self.gl);
+            rpass.set_pipeline(&material.shader.pipeline);
+            rpass.set_bind_group(0, &material.bind_group, &[]);
+            mesh.draw(rpass);
         }
     }
 }

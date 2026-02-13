@@ -1,251 +1,122 @@
-#![allow(non_snake_case)]
-use glam::{Mat4, Vec2, Vec3, Vec4};
-use glow::{HasContext, Program, UniformLocation};
-use std::collections::HashMap;
-#[cfg(not(target_arch = "wasm32"))]
-use std::fs;
+//! Thin wrapper around a `wgpu::RenderPipeline`.
+//!
+//! Each `Shader` owns a pipeline, its bind-group layout, and knows
+//! the uniform buffer layout expected by the WGSL source.
 
-use crate::gl_check_error;
-use crate::graphics::GlRef;
-use crate::graphics::ShaderSource;
+use std::sync::Arc;
 
-#[derive(Clone)]
+use crate::graphics::Vertex;
+
+/// A compiled render pipeline + its bind group layout.
 pub struct Shader {
-    gl: GlRef,
-    pub(crate) handle: Program,
-    pub(crate) attributes: HashMap<&'static str, u32>, // Name and Location
-    pub(crate) sources: Vec<ShaderSource>,
-    destroyed: bool,
-}
-
-// Create a basic loaded object shader
-#[macro_export]
-macro_rules! loaded_shader {
-    ($gl:expr) => {{
-        let mut shader = crate::graphics::Shader::new($gl.clone());
-        let _ = shader.add(
-            glow::FRAGMENT_SHADER,
-            crate::graphics::LOADED_OBJ_FRAG_SRC,
-            crate::graphics::LOADED_OBJ_FRAG_PATH,
-        );
-        let _ = shader.add(
-            glow::VERTEX_SHADER,
-            crate::graphics::LOADED_OBJ_VERT_SRC,
-            crate::graphics::LOADED_OBJ_VERT_PATH,
-        );
-        let _ = shader.link();
-
-        shader.add_attribute("i_position");
-        shader.add_attribute("i_color");
-        shader.add_attribute("i_normal");
-        shader.add_attribute("i_uv");
-
-        shader
-    }};
+    pub pipeline: wgpu::RenderPipeline,
+    pub bind_group_layout: wgpu::BindGroupLayout,
 }
 
 impl Shader {
-    pub fn new(renderer: GlRef) -> Self {
-        unsafe {
-            let program = renderer.create_program().expect("Failed to create program");
+    /// Create a render pipeline from WGSL source.
+    ///
+    /// `uniform_entries` describes the bind group layout entries beyond the
+    /// uniform buffer at binding 0 (texture + sampler are always at 1 & 2).
+    pub fn new(
+        device: &Arc<wgpu::Device>,
+        wgsl_source: &str,
+        surface_format: wgpu::TextureFormat,
+        label: &str,
+    ) -> Self {
+        let shader_module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some(label),
+            source: wgpu::ShaderSource::Wgsl(wgsl_source.into()),
+        });
 
-            gl_check_error!(&renderer);
+        let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some(&format!("{label} bind group layout")),
+            entries: &[
+                // binding 0 — uniform buffer
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                // binding 1 — texture
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        multisampled: false,
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                    },
+                    count: None,
+                },
+                // binding 2 — sampler
+                wgpu::BindGroupLayoutEntry {
+                    binding: 2,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                    count: None,
+                },
+            ],
+        });
 
-            Self {
-                gl: renderer,
-                handle: program,
-                attributes: HashMap::new(),
-                sources: Vec::new(),
-                destroyed: false,
-            }
+        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some(&format!("{label} pipeline layout")),
+            bind_group_layouts: &[&bind_group_layout],
+            immediate_size: 0,
+        });
+
+        let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some(label),
+            layout: Some(&pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: &shader_module,
+                entry_point: Some("vs_main"),
+                buffers: &[Vertex::desc()],
+                compilation_options: Default::default(),
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &shader_module,
+                entry_point: Some("fs_main"),
+                targets: &[Some(wgpu::ColorTargetState {
+                    format: surface_format,
+                    blend: Some(wgpu::BlendState::REPLACE),
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+                compilation_options: Default::default(),
+            }),
+            primitive: wgpu::PrimitiveState {
+                topology: wgpu::PrimitiveTopology::TriangleList,
+                strip_index_format: None,
+                front_face: wgpu::FrontFace::Ccw,
+                cull_mode: Some(wgpu::Face::Back),
+                polygon_mode: wgpu::PolygonMode::Fill,
+                unclipped_depth: false,
+                conservative: false,
+            },
+            depth_stencil: Some(wgpu::DepthStencilState {
+                format: wgpu::TextureFormat::Depth32Float,
+                depth_write_enabled: true,
+                depth_compare: wgpu::CompareFunction::Less,
+                stencil: wgpu::StencilState::default(),
+                bias: wgpu::DepthBiasState::default(),
+            }),
+            multisample: wgpu::MultisampleState {
+                count: 1,
+                mask: !0,
+                alpha_to_coverage_enabled: false,
+            },
+            multiview_mask: None,
+            cache: None,
+        });
+
+        Self {
+            pipeline,
+            bind_group_layout,
         }
-    }
-
-    /// Compile Shader and attach to the program
-    pub fn add(
-        &mut self,
-        shader_type: u32,
-        source: &str,
-        filepath: &'static str,
-    ) -> Result<(), String> {
-        let src = ShaderSource::new(self.gl.clone(), self.handle, shader_type, source, filepath)?;
-
-        self.sources.push(src);
-
-        Ok(())
-    }
-
-    pub fn is_linked(&self) -> bool {
-        unsafe { self.gl.get_program_link_status(self.handle) }
-    }
-
-    /// Link shader to the program
-    pub fn link(&mut self) -> Result<(), String> {
-        unsafe {
-            self.gl.link_program(self.handle);
-
-            gl_check_error!(&self.gl);
-
-            if !self.is_linked() {
-                let e = self.gl.get_program_info_log(self.handle);
-                return Err(format!("Shader failed to link: {e}"));
-            }
-        }
-
-        for source in &mut self.sources {
-            source.delete();
-        }
-
-        Ok(())
-    }
-
-    // Use the shader
-    pub fn bind(&self) {
-        if self.destroyed {
-            return;
-        }
-
-        unsafe {
-            self.gl.use_program(Some(self.handle));
-            gl_check_error!(&self.gl);
-        }
-    }
-
-    #[cfg(not(target_arch = "wasm32"))]
-    pub fn reload_shader(gl: GlRef, shader: &mut Shader) -> Result<(), String> {
-        let mut reloaded_shader = Shader::new(gl.clone());
-
-        for s in &shader.sources {
-            let f = s.filepath;
-            let t = s.shader_type;
-
-            let source = match fs::read_to_string(f) {
-                Ok(s) => s,
-                Err(e) => return Err(format!("{e}")),
-            };
-
-            reloaded_shader.add(t, source.as_str(), f)?;
-        }
-
-        reloaded_shader.link()?;
-
-        for (name, _) in &shader.attributes {
-            reloaded_shader.add_attribute(name);
-        }
-
-        let old_handle = shader.handle;
-        shader.handle = reloaded_shader.handle;
-
-        unsafe {
-            gl.delete_program(old_handle);
-        }
-
-        // Prevent the temporary `reloaded_shader` from deleting its program in Drop.
-        // Safety: The handle is passed to the Shader object which will delete the shader on the GPU when Dropped
-        // All sources are deleted after linking.
-        std::mem::forget(reloaded_shader);
-
-        Ok(())
-    }
-
-    /// Add attribute to the shader
-    pub fn add_attribute(&mut self, name: &'static str) {
-        let loc = self.getAttribLocation(name);
-
-        match loc {
-            Some(loc) => self.attributes.insert(name, loc),
-            None => return,
-        };
-    }
-
-    /// Remove shader from GPU memory
-    pub fn delete(&mut self) {
-        if self.destroyed {
-            return;
-        }
-
-        unsafe {
-            self.gl.delete_program(self.handle);
-        }
-
-        self.destroyed = true;
-    }
-
-    fn getAttribLocation(&self, name: &str) -> Option<u32> {
-        unsafe { self.gl.get_attrib_location(self.handle, name) }
-    }
-
-    fn getUniformLocation(&self, name: &str) -> Option<UniformLocation> {
-        unsafe { self.gl.get_uniform_location(self.handle, name) }
-    }
-
-    pub fn setUniform1i(&self, name: &str, value: i32) {
-        unsafe {
-            self.gl
-                .uniform_1_i32(self.getUniformLocation(name).as_ref(), value);
-        }
-    }
-
-    pub fn setUniform1ui(&self, name: &str, value: u32) {
-        unsafe {
-            self.gl
-                .uniform_1_u32(self.getUniformLocation(name).as_ref(), value);
-        }
-    }
-
-    pub fn setUniform1f(&self, name: &str, value: f32) {
-        unsafe {
-            self.gl
-                .uniform_1_f32(self.getUniformLocation(name).as_ref(), value);
-        }
-    }
-
-    pub fn setUniform2fv(&self, name: &str, value: &Vec2) {
-        self.setUniform2f(name, value.x, value.y);
-    }
-
-    pub fn setUniform2f(&self, name: &str, x: f32, y: f32) {
-        unsafe {
-            self.gl
-                .uniform_2_f32(self.getUniformLocation(name).as_ref(), x, y);
-        }
-    }
-
-    pub fn setUniform3fv(&self, name: &str, value: &Vec3) {
-        self.setUniform3f(name, value.x, value.y, value.z);
-    }
-
-    pub fn setUniform3f(&self, name: &str, x: f32, y: f32, z: f32) {
-        unsafe {
-            self.gl
-                .uniform_3_f32(self.getUniformLocation(name).as_ref(), x, y, z);
-        }
-    }
-
-    pub fn setUniform4fv(&self, name: &str, value: &Vec4) {
-        self.setUniform4f(name, value.x, value.y, value.z, value.w);
-    }
-
-    pub fn setUniform4f(&self, name: &str, x: f32, y: f32, z: f32, w: f32) {
-        unsafe {
-            self.gl
-                .uniform_4_f32(self.getUniformLocation(name).as_ref(), x, y, z, w);
-        }
-    }
-
-    pub fn setUniform4fm(&self, name: &str, mat: &Mat4) {
-        unsafe {
-            self.gl.uniform_matrix_4_f32_slice(
-                self.getUniformLocation(name).as_ref(),
-                false,
-                &mat.to_cols_array(),
-            );
-        }
-    }
-}
-
-impl Drop for Shader {
-    fn drop(&mut self) {
-        self.delete();
     }
 }

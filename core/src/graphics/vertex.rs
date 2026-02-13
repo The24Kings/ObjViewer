@@ -1,9 +1,6 @@
 use bytemuck::{Pod, Zeroable};
 use glam::{Vec2, Vec3};
 
-pub const VEC3: i32 = 3;
-pub const VEC2: i32 = 2;
-
 /// A vertex with position, color, normal, and texture coordinates.
 ///
 /// Memory layout is `#[repr(C)]` for GPU compatibility:
@@ -22,6 +19,41 @@ pub struct Vertex {
 }
 
 impl Vertex {
+    /// Describes the memory layout for the wgpu vertex buffer.
+    pub fn desc() -> wgpu::VertexBufferLayout<'static> {
+        use std::mem;
+        wgpu::VertexBufferLayout {
+            array_stride: mem::size_of::<Vertex>() as wgpu::BufferAddress,
+            step_mode: wgpu::VertexStepMode::Vertex,
+            attributes: &[
+                // position: vec3<f32> @ location(0)
+                wgpu::VertexAttribute {
+                    offset: 0,
+                    shader_location: 0,
+                    format: wgpu::VertexFormat::Float32x3,
+                },
+                // color: vec3<f32> @ location(1)
+                wgpu::VertexAttribute {
+                    offset: 12,
+                    shader_location: 1,
+                    format: wgpu::VertexFormat::Float32x3,
+                },
+                // normal: vec3<f32> @ location(2)
+                wgpu::VertexAttribute {
+                    offset: 24,
+                    shader_location: 2,
+                    format: wgpu::VertexFormat::Float32x3,
+                },
+                // tex_coords: vec2<f32> @ location(3)
+                wgpu::VertexAttribute {
+                    offset: 36,
+                    shader_location: 3,
+                    format: wgpu::VertexFormat::Float32x2,
+                },
+            ],
+        }
+    }
+
     /// Creates a new vertex with position, normal, color, and texture.
     pub fn new(position: Vec3, color: Vec3, normal: Vec3, tex_coords: Vec2) -> Self {
         Self {

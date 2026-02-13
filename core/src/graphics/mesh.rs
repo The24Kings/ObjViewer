@@ -1,113 +1,59 @@
-use bytemuck::{cast_slice, offset_of};
-use glow::{Buffer, Context, HasContext, VertexArray};
-use std::mem::size_of;
+//! wgpu mesh: vertex + index buffers on the GPU.
 
-use crate::gl_check_error;
-use crate::graphics::{ShaderRef, VEC3};
-use crate::graphics::{VEC2, Vertex};
+use bytemuck::cast_slice;
+use std::sync::Arc;
+use wgpu::util::DeviceExt;
+
+use crate::graphics::Vertex;
 
 #[derive(Clone)]
-
 pub struct Mesh {
-    pub vao: Option<VertexArray>,
-    pub vbo: Option<Buffer>,
-    pub ibo: Option<Buffer>,
+    pub vertex_buffer: Option<wgpu::Buffer>,
+    pub index_buffer: Option<wgpu::Buffer>,
     pub vertices: Vec<Vertex>,
     pub indices: Vec<u32>,
 }
 
 impl Mesh {
-    pub fn draw(&self, gl: &Context) {
-        if !self.is_uploaded() {
-            panic!("Mesh not uploaded to GPU");
-        }
+    /// Upload vertex/index data to the GPU. Call once after construction.
+    pub fn upload(&mut self, device: &Arc<wgpu::Device>) {
+        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Mesh Vertex Buffer"),
+            contents: cast_slice(&self.vertices),
+            usage: wgpu::BufferUsages::VERTEX,
+        });
 
-        unsafe {
-            gl.bind_vertex_array(self.vao);
+        self.vertex_buffer = Some(vertex_buffer);
 
-            gl_check_error!(gl);
-
-            if let Some(_) = self.ibo {
-                gl.draw_elements(
-                    glow::TRIANGLES,
-                    self.indices.len() as i32,
-                    glow::UNSIGNED_INT,
-                    0,
-                );
-            } else {
-                gl.draw_arrays(glow::TRIANGLES, 0, self.vertices.len() as i32);
-            }
-
-            gl.bind_vertex_array(None);
+        if !self.indices.is_empty() {
+            let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Mesh Index Buffer"),
+                contents: cast_slice(&self.indices),
+                usage: wgpu::BufferUsages::INDEX,
+            });
+            self.index_buffer = Some(index_buffer);
         }
     }
 
-    fn is_uploaded(&self) -> bool {
-        self.vao.is_some() && self.vbo.is_some()
+    pub fn is_uploaded(&self) -> bool {
+        self.vertex_buffer.is_some()
     }
 
-    pub fn upload(&mut self, gl: &Context, shader: ShaderRef) -> Result<(), String> {
-        unsafe {
-            let vao = gl
-                .create_vertex_array()
-                .expect("Failed to create vertex array");
+    /// Issue draw commands into an existing render pass.
+    pub fn draw(&self, rpass: &mut wgpu::RenderPass<'_>) {
+        let vb = self
+            .vertex_buffer
+            .as_ref()
+            .expect("Mesh not uploaded to GPU");
 
-            let vbo = gl.create_buffer().expect("Failed to create vertex buffer");
+        rpass.set_vertex_buffer(0, vb.slice(..));
 
-            gl.bind_vertex_array(Some(vao));
-            gl.bind_buffer(glow::ARRAY_BUFFER, Some(vbo));
-
-            gl_check_error!(gl);
-
-            // Upload vertex data
-            gl.buffer_data_u8_slice(
-                glow::ARRAY_BUFFER,
-                cast_slice(&self.vertices),
-                glow::STATIC_DRAW,
-            );
-
-            gl_check_error!(gl);
-
-            // Upload index data if present
-            if !self.indices.is_empty() {
-                let ibo = gl.create_buffer().expect("Failed to create index buffer");
-
-                gl.bind_buffer(glow::ELEMENT_ARRAY_BUFFER, Some(ibo));
-                gl.buffer_data_u8_slice(
-                    glow::ELEMENT_ARRAY_BUFFER,
-                    cast_slice(&self.indices),
-                    glow::STATIC_DRAW,
-                );
-                gl_check_error!(gl);
-
-                self.ibo = Some(ibo);
-            }
-
-            self.vao = Some(vao);
-            self.vbo = Some(vbo);
-
-            let stride = size_of::<Vertex>() as i32;
-
-            // Setup vertex attributes
-            for (name, loc) in &shader.attributes {
-                let (offset, size) = match *name {
-                    "i_position" => (offset_of!(Vertex, position), VEC3),
-                    "i_color" => (offset_of!(Vertex, color), VEC3),
-                    "i_normal" => (offset_of!(Vertex, normal), VEC3),
-                    "i_uv" => (offset_of!(Vertex, tex_coords), VEC2),
-                    _ => {
-                        return Err(format!("Unknown attribute name: {}", name));
-                    }
-                };
-                gl.enable_vertex_attrib_array(*loc);
-                gl.vertex_attrib_pointer_f32(*loc, size, glow::FLOAT, false, stride, offset as i32);
-                gl_check_error!(gl);
-            }
-
-            gl.bind_vertex_array(None);
-            gl.bind_buffer(glow::ARRAY_BUFFER, None);
-
-            Ok(())
+        if let Some(ib) = &self.index_buffer {
+            rpass.set_index_buffer(ib.slice(..), wgpu::IndexFormat::Uint32);
+            rpass.draw_indexed(0..self.indices.len() as u32, 0, 0..1);
+        } else {
+            rpass.draw(0..self.vertices.len() as u32, 0..1);
         }
     }
 }
+

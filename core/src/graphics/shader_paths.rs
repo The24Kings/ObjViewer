@@ -1,55 +1,7 @@
-// ============================================================================
-// Native shaders (OpenGL 3.3+)
-// ============================================================================
+//! WGSL shader sources — platform-agnostic (wgpu compiles WGSL everywhere).
 
-#[cfg(not(target_arch = "wasm32"))]
-pub mod native {
-    // Light cube shader
-    pub const LIGHT_CUBE_FRAG_SRC: &str =
-        include_str!("../../../resources/shaders/native/light_cube.frag");
-    pub const LIGHT_CUBE_VERT_SRC: &str =
-        include_str!("../../../resources/shaders/native/light_cube.vert");
-    pub const LIGHT_CUBE_FRAG_PATH: &str = "resources/shaders/native/light_cube.frag";
-    pub const LIGHT_CUBE_VERT_PATH: &str = "resources/shaders/native/light_cube.vert";
+/// Light-cube shader (textured passthrough, no lighting).
+pub const LIGHT_CUBE_WGSL: &str = include_str!("../../../resources/shaders/light_cube.wgsl");
 
-    // Loaded obj shader
-    pub const LOADED_OBJ_FRAG_SRC: &str =
-        include_str!("../../../resources/shaders/native/loaded_obj.frag");
-    pub const LOADED_OBJ_VERT_SRC: &str =
-        include_str!("../../../resources/shaders/native/loaded_obj.vert");
-    pub const LOADED_OBJ_FRAG_PATH: &str = "resources/shaders/native/loaded_obj.frag";
-    pub const LOADED_OBJ_VERT_PATH: &str = "resources/shaders/native/loaded_obj.vert";
-}
-
-// ============================================================================
-// Web shaders (GLSL ES 3.00 / WebGL2)
-// ============================================================================
-
-#[cfg(target_arch = "wasm32")]
-pub mod web {
-    // Light cube shader
-    pub const LIGHT_CUBE_FRAG_SRC: &str =
-        include_str!("../../../resources/shaders/web/light_cube.frag");
-    pub const LIGHT_CUBE_VERT_SRC: &str =
-        include_str!("../../../resources/shaders/web/light_cube.vert");
-    pub const LIGHT_CUBE_FRAG_PATH: &str = "resources/shaders/web/light_cube.frag";
-    pub const LIGHT_CUBE_VERT_PATH: &str = "resources/shaders/web/light_cube.vert";
-
-    // Loaded obj shader
-    pub const LOADED_OBJ_FRAG_SRC: &str =
-        include_str!("../../../resources/shaders/web/loaded_obj.frag");
-    pub const LOADED_OBJ_VERT_SRC: &str =
-        include_str!("../../../resources/shaders/web/loaded_obj.vert");
-    pub const LOADED_OBJ_FRAG_PATH: &str = "resources/shaders/web/loaded_obj.frag";
-    pub const LOADED_OBJ_VERT_PATH: &str = "resources/shaders/web/loaded_obj.vert";
-}
-
-// ============================================================================
-// Platform-agnostic re-exports
-// ============================================================================
-
-#[cfg(not(target_arch = "wasm32"))]
-pub use native::*;
-
-#[cfg(target_arch = "wasm32")]
-pub use web::*;
+/// Loaded-object shader (Phong lighting + texture).
+pub const LOADED_OBJ_WGSL: &str = include_str!("../../../resources/shaders/loaded_obj.wgsl");

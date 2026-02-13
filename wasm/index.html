@@ -30,6 +30,19 @@
     <div class="canvasContainer">
         <canvas id="canvas" width="800" height="600"></canvas>
     </div>
+    <script type="importmap">
+    {
+        "imports": {
+            "imgui-sys-v0": "./pkg/imgui-sys-v0-wrapper.js"
+        }
+    }
+    </script>
+    <script>
+        // Create shared memory BEFORE any module scripts load.
+        // Both the main Rust wasm and the imgui-sys-v0 provider import this same memory.
+        // 2048 pages = 128 MiB initial (matches provider's INITIAL_MEMORY=134217728).
+        globalThis.__imgui_shared_memory = new WebAssembly.Memory({ initial: 2048, maximum: 32768 });
+    </script>
     <script type="module">
         import init from "./pkg/wasm.js";
 

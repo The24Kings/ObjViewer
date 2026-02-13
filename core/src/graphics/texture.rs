@@ -1,23 +1,15 @@
-use glow::{HasContext, Texture as GlowTexture};
+//! wgpu texture wrapper.
+
+use std::sync::Arc;
+
 #[cfg(not(target_arch = "wasm32"))]
 use image::ImageReader;
-
-use crate::graphics::GlRef;
-
-#[derive(Clone)]
-pub struct Texture {
-    gl: GlRef,
-    pub(crate) handle: GlowTexture,
-    pub unit: i32,
-    pub width: u32,
-    pub height: u32,
-}
 
 #[derive(Clone, Copy, Default)]
 pub enum FilterMode {
     #[default]
-    Nearest, // Pixelated (good for pixel art)
-    Linear, // Smooth (good for photos/realistic textures)
+    Nearest,
+    Linear,
 }
 
 #[derive(Clone, Copy, Default)]
@@ -28,142 +20,152 @@ pub enum WrapMode {
     MirroredRepeat,
 }
 
-pub struct TextureBuilder {
-    gl: GlRef,
-    unit: i32,
-    filter: FilterMode,
-    wrap: WrapMode,
-}
-
-impl TextureBuilder {
-    pub fn new(gl: GlRef) -> Self {
-        Self {
-            gl,
-            unit: 0,
-            filter: FilterMode::default(),
-            wrap: WrapMode::default(),
-        }
-    }
-
-    pub fn unit(mut self, unit: i32) -> Self {
-        self.unit = unit;
-        self
-    }
-
-    pub fn filter(mut self, filter: FilterMode) -> Self {
-        self.filter = filter;
-        self
-    }
-
-    pub fn wrap(mut self, wrap: WrapMode) -> Self {
-        self.wrap = wrap;
-        self
-    }
-
-    /// Load texture from file path (not supported on WASM - use load_bytes instead)
-    #[cfg(not(target_arch = "wasm32"))]
-    pub fn load_file(self, path: &str) -> Result<Texture, String> {
-        let img = ImageReader::open(path)
-            .map_err(|e| format!("Failed to open '{}': {}", path, e))?
-            .decode()
-            .map_err(|e| format!("Failed to decode '{}': {}", path, e))?
-            .to_rgba8();
-
-        self.load_rgba(&img.as_raw(), img.width(), img.height())
-    }
-
-    /// Load texture from embedded bytes (works on all platforms including WASM)
-    pub fn load_bytes(self, data: &[u8]) -> Result<Texture, String> {
-        let img = image::load_from_memory(data)
-            .map_err(|e| format!("Failed to decode image: {}", e))?
-            .to_rgba8();
-
-        self.load_rgba(&img.as_raw(), img.width(), img.height())
-    }
-
-    /// Load texture from raw RGBA bytes
-    pub fn load_rgba(self, data: &[u8], width: u32, height: u32) -> Result<Texture, String> {
-        unsafe {
-            let texture = self.gl.create_texture().map_err(|e| e)?;
-            let pixels = glow::PixelUnpackData::Slice(Some(data));
-
-            self.gl.active_texture(glow::TEXTURE0 + self.unit as u32);
-            self.gl.bind_texture(glow::TEXTURE_2D, Some(texture));
-
-            self.gl.tex_image_2d(
-                glow::TEXTURE_2D,
-                0,
-                glow::RGBA8 as i32,
-                width as i32,
-                height as i32,
-                0,
-                glow::RGBA,
-                glow::UNSIGNED_BYTE,
-                pixels,
-            );
-
-            let filter = match self.filter {
-                FilterMode::Nearest => glow::NEAREST as i32,
-                FilterMode::Linear => glow::LINEAR as i32,
-            };
-
-            let wrap = match self.wrap {
-                WrapMode::Repeat => glow::REPEAT as i32,
-                WrapMode::ClampToEdge => glow::CLAMP_TO_EDGE as i32,
-                WrapMode::MirroredRepeat => glow::MIRRORED_REPEAT as i32,
-            };
-
-            self.gl
-                .tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_MIN_FILTER, filter);
-            self.gl
-                .tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_MAG_FILTER, filter);
-            self.gl
-                .tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_WRAP_S, wrap);
-            self.gl
-                .tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_WRAP_T, wrap);
-
-            Ok(Texture {
-                gl: self.gl,
-                handle: texture,
-                unit: self.unit,
-                width,
-                height,
-            })
-        }
-    }
+/// A GPU texture + view + sampler, ready to be bound.
+#[derive(Clone)]
+pub struct Texture {
+    pub texture: wgpu::Texture,
+    pub view: wgpu::TextureView,
+    pub sampler: wgpu::Sampler,
+    pub width: u32,
+    pub height: u32,
 }
 
 impl Texture {
-    /// Quick load with default settings (unit 0, nearest filter, repeat wrap)
-    #[cfg(not(target_arch = "wasm32"))]
-    pub fn from_file(gl: GlRef, path: &str) -> Result<Texture, String> {
-        TextureBuilder::new(gl).load_file(path)
-    }
+    /// Create from raw RGBA8 bytes.
+    pub fn from_rgba(
+        device: &Arc<wgpu::Device>,
+        queue: &Arc<wgpu::Queue>,
+        data: &[u8],
+        width: u32,
+        height: u32,
+        filter: FilterMode,
+        wrap: WrapMode,
+        label: Option<&str>,
+    ) -> Self {
+        let size = wgpu::Extent3d {
+            width,
+            height,
+            depth_or_array_layers: 1,
+        };
 
-    /// Quick load from embedded bytes with default settings
-    pub fn from_bytes(gl: GlRef, data: &[u8]) -> Result<Texture, String> {
-        TextureBuilder::new(gl).load_bytes(data)
-    }
+        let texture = device.create_texture(&wgpu::TextureDescriptor {
+            label,
+            size,
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8UnormSrgb,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+            view_formats: &[],
+        });
 
-    /// Start building a texture with custom settings
-    pub fn builder(gl: GlRef) -> TextureBuilder {
-        TextureBuilder::new(gl)
-    }
+        queue.write_texture(
+            wgpu::TexelCopyTextureInfo {
+                texture: &texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            data,
+            wgpu::TexelCopyBufferLayout {
+                offset: 0,
+                bytes_per_row: Some(4 * width),
+                rows_per_image: Some(height),
+            },
+            size,
+        );
 
-    /// Create a default 1x1 white texture (RGBA: 255, 255, 255, 255)
-    pub fn white_1x1(gl: GlRef) -> Result<Texture, String> {
-        let white_pixel: [u8; 4] = [255, 255, 255, 255];
-        TextureBuilder::new(gl)
-            .filter(FilterMode::Nearest)
-            .wrap(WrapMode::Repeat)
-            .load_rgba(&white_pixel, 1, 1)
-    }
+        let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
 
-    /// Bind this texture to its assigned texture unit
-    pub fn bind(&self) {
-        unsafe {
-            self.gl.active_texture(glow::TEXTURE0 + self.unit as u32);
-            self.gl.bind_texture(glow::TEXTURE_2D, Some(self.handle));
+        let wgpu_filter = match filter {
+            FilterMode::Nearest => wgpu::FilterMode::Nearest,
+            FilterMode::Linear => wgpu::FilterMode::Linear,
+        };
+        let wgpu_wrap = match wrap {
+            WrapMode::Repeat => wgpu::AddressMode::Repeat,
+            WrapMode::ClampToEdge => wgpu::AddressMode::ClampToEdge,
+            WrapMode::MirroredRepeat => wgpu::AddressMode::MirrorRepeat,
+        };
+
+        let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+            label: Some("texture_sampler"),
+            address_mode_u: wgpu_wrap,
+            address_mode_v: wgpu_wrap,
+            address_mode_w: wgpu_wrap,
+            mag_filter: wgpu_filter,
+            min_filter: wgpu_filter,
+            mipmap_filter: wgpu::MipmapFilterMode::Nearest,
+            ..Default::default()
+        });
+
+        Self {
+            texture,
+            view,
+            sampler,
+            width,
+            height,
         }
+    }
+
+    /// Load from embedded image bytes (PNG, JPEG, etc.).
+    pub fn from_bytes(
+        device: &Arc<wgpu::Device>,
+        queue: &Arc<wgpu::Queue>,
+        data: &[u8],
+        label: Option<&str>,
+    ) -> Result<Self, String> {
+        let img = image::load_from_memory(data)
+            .map_err(|e| format!("Failed to decode image: {e}"))?
+            .to_rgba8();
+
+        Ok(Self::from_rgba(
+            device,
+            queue,
+            img.as_raw(),
+            img.width(),
+            img.height(),
+            FilterMode::Nearest,
+            WrapMode::Repeat,
+            label,
+        ))
+    }
+
+    /// Load from file path (native only).
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn from_file(
+        device: &Arc<wgpu::Device>,
+        queue: &Arc<wgpu::Queue>,
+        path: &str,
+    ) -> Result<Self, String> {
+        let img = ImageReader::open(path)
+            .map_err(|e| format!("Failed to open '{path}': {e}"))?
+            .decode()
+            .map_err(|e| format!("Failed to decode '{path}': {e}"))?
+            .to_rgba8();
+
+        Ok(Self::from_rgba(
+            device,
+            queue,
+            img.as_raw(),
+            img.width(),
+            img.height(),
+            FilterMode::Nearest,
+            WrapMode::Repeat,
+            Some(path),
+        ))
+    }
+
+    /// 1×1 white pixel — used as default when no texture is assigned.
+    pub fn white_1x1(device: &Arc<wgpu::Device>, queue: &Arc<wgpu::Queue>) -> Self {
+        Self::from_rgba(
+            device,
+            queue,
+            &[255, 255, 255, 255],
+            1,
+            1,
+            FilterMode::Nearest,
+            WrapMode::Repeat,
+            Some("white_1x1"),
+        )
     }
 }

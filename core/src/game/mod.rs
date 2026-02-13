@@ -15,7 +15,7 @@ pub use render_manager::RenderManager;
 pub use transform::Transform;
 
 // Re-export type aliases from graphics for convenience
-pub use crate::graphics::{GlRef, PhysicalRef, RenderableRef};
+pub use crate::graphics::{GpuContext, PhysicalRef, RenderableRef};
 
 pub trait GameObject: Renderable + Physical {}
 

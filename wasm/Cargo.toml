@@ -11,19 +11,22 @@ crate-type = ["cdylib"]
 [dependencies]
 app = { path = "../app" }
 core = { path = "../core" }
-glow.workspace = true
+wgpu = { workspace = true, features = ["webgl", "webgpu"] }
 winit.workspace = true
 winit_input_helper.workspace = true
 log.workspace = true
 
+dear-imgui-rs = { workspace = true, features = ["wasm"] }
+dear-imgui-winit.workspace = true
+dear-imgui-wgpu = { workspace = true, features = ["webgl", "webgpu"] }
+
 console_error_panic_hook = "0.1.7"
 console_log = "1.0.0"
 web-time = "1.1.0"
-
 wasm-bindgen = "0.2.106"
+wasm-bindgen-futures = "0.4"
 web-sys = { version = "0.3.83", features = [
     "HtmlCanvasElement",
-    "WebGl2RenderingContext",
     "Window",
     "Document",
 ] }

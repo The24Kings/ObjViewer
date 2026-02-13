@@ -1,10 +1,8 @@
-#[cfg(not(target_arch = "wasm32"))]
 use dear_imgui_rs::{TreeNodeFlags, Ui};
 use glam::{Mat4, Vec2, Vec3, vec2, vec4};
-use glow::HasContext;
-#[cfg(not(target_arch = "wasm32"))]
-use log::error;
 use log::info;
+use std::rc::Rc;
+use std::sync::Arc;
 use winit::dpi::PhysicalPosition;
 use winit::event::MouseButton;
 use winit::event_loop::ActiveEventLoop;
@@ -12,21 +10,19 @@ use winit::keyboard::KeyCode;
 use winit::window::CursorGrabMode;
 use winit_input_helper::WinitInputHelper;
 
+use crate::game::render_manager::{LightUniforms, ObjUniforms};
 use crate::game::{Camera, PhysicsManager, Projection, RenderManager};
-#[cfg(not(target_arch = "wasm32"))]
-use crate::graphics::Shader;
 use crate::graphics::types::{LightObjectRef, new_light_obj_ref};
 use crate::graphics::{
-    GlRef, LIGHT_CUBE_FRAG_PATH, LIGHT_CUBE_FRAG_SRC, LIGHT_CUBE_VERT_PATH, LIGHT_CUBE_VERT_SRC,
-    Material, ShaderRef, Texture, TextureRef, WindowRef, new_game_obj_ref, new_shader_ref,
-    new_texture_ref,
+    GpuContext, LIGHT_CUBE_WGSL, LOADED_OBJ_WGSL, Material, Shader, Texture, WindowRef,
+    new_game_obj_ref,
 };
-use crate::loaded_shader;
 use crate::objects::{Cube, Light};
 
 pub struct ViewPort {
     window: WindowRef,
-    gl: GlRef,
+    gpu: GpuContext,
+    depth_texture: wgpu::TextureView,
 
     camera: Camera,
     enable_2d: bool,
@@ -41,86 +37,84 @@ pub struct ViewPort {
 }
 
 impl ViewPort {
-    pub fn new(window: WindowRef, gl: GlRef, (width, height): (u32, u32)) -> Self {
-        unsafe {
-            info!("Initial viewport: {}/{}", width, height);
-
-            gl.viewport(0, 0, width as i32, height as i32);
-            gl.enable(glow::DEPTH_TEST);
-        }
+    pub fn new(
+        window: WindowRef,
+        gpu: GpuContext,
+        surface_format: wgpu::TextureFormat,
+        (width, height): (u32, u32),
+    ) -> Self {
+        info!("Initial viewport: {}/{}", width, height);
 
         let mut camera = Camera::new(0.1, 100.0);
-        let mut renderer = RenderManager::new(gl.clone()).unwrap();
+        let mut renderer = RenderManager::new(gpu.queue.clone());
         let mut physics_manager = PhysicsManager::new();
 
-        let light_shader: ShaderRef = {
-            let mut shader = crate::graphics::Shader::new(gl.clone());
-            let _ = shader.add(
-                glow::FRAGMENT_SHADER,
-                LIGHT_CUBE_FRAG_SRC,
-                LIGHT_CUBE_FRAG_PATH,
-            );
-            let _ = shader.add(
-                glow::VERTEX_SHADER,
-                LIGHT_CUBE_VERT_SRC,
-                LIGHT_CUBE_VERT_PATH,
-            );
-            let _ = shader.link();
+        // Light Source
+        let light_shader = Rc::new(Shader::new(
+            &gpu.device,
+            LIGHT_CUBE_WGSL,
+            surface_format,
+            "light_cube",
+        ));
 
-            shader.add_attribute("i_position");
-            shader.add_attribute("i_uv");
+        let light_texture = Texture::from_bytes(
+            &gpu.device,
+            &gpu.queue,
+            include_bytes!("objects/textures/redstone_lamp.png"),
+            Some("redstone_lamp"),
+        )
+        .expect("Failed to load light texture");
 
-            new_shader_ref(shader)
-        };
-        let mut light_material = Material::new(gl.clone(), light_shader.clone());
-        let light_texture: TextureRef = {
-            let tex = Texture::from_bytes(
-                gl.clone(),
-                include_bytes!("objects/textures/redstone_lamp.png"),
-            )
-            .expect("Failed to load texture");
-            new_texture_ref(tex)
-        };
-        light_material.texture = Some(light_texture);
+        let light_material = Material::new(
+            &gpu.device,
+            light_shader.clone(),
+            light_texture,
+            std::mem::size_of::<LightUniforms>() as u64,
+        );
 
         let mut light = Light::new(light_material);
-        light
-            .mesh
-            .upload(&gl, light_shader)
-            .expect("Failed to upload mesh");
-
+        light.mesh.upload(&gpu.device);
         light.transform.position = Vec3::new(1.0, 1.0, 1.0);
         light.transform.scale = Vec3::new(0.25, 0.25, 0.25);
 
         let light_ref = new_light_obj_ref(light);
         renderer.add_renderable(light_ref.clone());
 
-        let obj_shader: ShaderRef = {
-            let shader = loaded_shader!(gl.clone());
-            new_shader_ref(shader)
-        };
-        let obj_material = Material::new(gl.clone(), obj_shader.clone());
+        // Test Cube
+        let obj_shader = Rc::new(Shader::new(
+            &gpu.device,
+            LOADED_OBJ_WGSL,
+            surface_format,
+            "loaded_obj",
+        ));
+
+        let default_texture = Texture::white_1x1(&gpu.device, &gpu.queue);
+
+        let obj_material = Material::new(
+            &gpu.device,
+            obj_shader.clone(),
+            default_texture,
+            std::mem::size_of::<ObjUniforms>() as u64,
+        );
 
         let mut cube = Cube::new(obj_material);
-        cube.mesh
-            .upload(&gl, obj_shader)
-            .expect("Failed to upload mesh");
+        cube.mesh.upload(&gpu.device);
 
         let cube_ref = new_game_obj_ref(cube);
-
         renderer.add_renderable(cube_ref.clone());
         physics_manager.add_physical(cube_ref);
 
         camera.transform.position = Vec3::new(0.0, 0.0, 5.0);
 
-        // Calculate initial projection matrix using the passed dimensions
         let aspect = width as f32 / height as f32;
         let projection_matrix =
             camera.get_camera_projection_matrix(Projection::Perspective(aspect));
 
+        let depth_texture = Self::create_depth_texture(&gpu.device, width, height);
+
         ViewPort {
             window,
-            gl,
+            gpu,
 
             camera,
             render_manager: renderer,
@@ -132,7 +126,34 @@ impl ViewPort {
             projection_matrix,
             view_matrix: Mat4::IDENTITY,
             sun: light_ref,
+
+            depth_texture,
         }
+    }
+
+    fn create_depth_texture(
+        device: &Arc<wgpu::Device>,
+        width: u32,
+        height: u32,
+    ) -> wgpu::TextureView {
+        let size = wgpu::Extent3d {
+            width: width.max(1),
+            height: height.max(1),
+            depth_or_array_layers: 1,
+        };
+        let desc = wgpu::TextureDescriptor {
+            label: Some("depth_texture"),
+            size,
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Depth32Float,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+            view_formats: &[],
+        };
+        device
+            .create_texture(&desc)
+            .create_view(&wgpu::TextureViewDescriptor::default())
     }
 
     // Set projection matrix based on current window size, fov, and mode (2D/3D)
@@ -154,7 +175,6 @@ impl ViewPort {
     }
 
     fn update_mouse_capture_state(&mut self) {
-        // Only confine and hide cursor in 3D mode with capture enabled
         let confine = self.capture_mouse && !self.enable_2d;
         _ = if confine {
             self.window
@@ -191,20 +211,6 @@ impl ViewPort {
             self.set_projection_matrix();
             self.update_mouse_capture_state();
         }
-        #[cfg(not(target_arch = "wasm32"))]
-        if input.key_pressed(KeyCode::KeyR) {
-            info!("Reloading Shaders");
-
-            self.render_manager.render_targets.iter().for_each(|o| {
-                let mut obj = o.borrow_mut();
-                let shader = obj.material_mut().shader_mut();
-
-                match Shader::reload_shader(self.gl.clone(), shader) {
-                    Ok(_) => info!("Successfully reloaded shader: {:?}", shader.handle),
-                    Err(e) => error!("Failed to reload shader: {}", e),
-                }
-            });
-        }
 
         if self.capture_mouse {
             self.handle_mouse(input);
@@ -213,7 +219,6 @@ impl ViewPort {
 
     fn normalize_cursor(&mut self, cursor: Vec2) -> Vec3 {
         let size = self.window.inner_size();
-        // https://antongerdelan.net/opengl/raycasting.html
         let ndc = vec2(
             (2.0 * cursor.x) / size.width as f32 - 1.0,
             1.0 - (2.0 * cursor.y) / size.height as f32,
@@ -241,14 +246,12 @@ impl ViewPort {
         }
 
         if self.enable_2d {
-            // Get the initial mouse position on first press
             if input.mouse_pressed(MouseButton::Left) {
                 if let Some(cursor) = input.cursor() {
                     self.last_mouse_pos = vec2(cursor.0, cursor.1);
                 }
             }
 
-            // Handle moving mouse (diff from origin)
             if input.mouse_held(MouseButton::Left) {
                 if let Some(cursor) = input.cursor() {
                     let current = vec2(cursor.0, cursor.1);
@@ -284,37 +287,58 @@ impl ViewPort {
     }
 
     pub fn resize(&mut self, width: u32, height: u32) {
-        unsafe {
-            self.gl.viewport(0, 0, width as i32, height as i32);
-            info!("Resized viewport: {}/{}", width, height);
-        }
+        info!("Resized viewport: {}/{}", width, height);
+        self.depth_texture = Self::create_depth_texture(&self.gpu.device, width, height);
         self.set_projection_matrix();
     }
 
     pub fn update(&mut self, dt: f32) {
-        // Update physics before rendering
         self.physics_manager.update(dt);
         self.render_manager.update(dt);
     }
 
-    pub fn render(&mut self, clear_color: [f32; 4]) {
-        unsafe {
-            self.gl
-                .clear(glow::COLOR_BUFFER_BIT | glow::DEPTH_BUFFER_BIT);
-            self.gl.clear_color(
-                clear_color[0],
-                clear_color[1],
-                clear_color[2],
-                clear_color[3],
-            );
-        }
-
+    pub fn render(
+        &mut self,
+        encoder: &mut wgpu::CommandEncoder,
+        view: &wgpu::TextureView,
+        clear_color: [f32; 4],
+    ) {
         self.view_matrix = self.camera.get_camera_view_matrix();
         let pv = self.projection_matrix * self.view_matrix;
-        self.render_manager.draw(&pv, &self.camera, &self.sun);
+
+        let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("scene_pass"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(wgpu::Color {
+                        r: clear_color[0] as f64,
+                        g: clear_color[1] as f64,
+                        b: clear_color[2] as f64,
+                        a: clear_color[3] as f64,
+                    }),
+                    store: wgpu::StoreOp::Store,
+                },
+                depth_slice: None,
+            })],
+            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                view: &self.depth_texture,
+                depth_ops: Some(wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(1.0),
+                    store: wgpu::StoreOp::Store,
+                }),
+                stencil_ops: None,
+            }),
+            timestamp_writes: None,
+            multiview_mask: None,
+            occlusion_query_set: None,
+        });
+
+        self.render_manager
+            .draw(&mut rpass, &pv, &self.camera, &self.sun);
     }
 
-    #[cfg(not(target_arch = "wasm32"))]
     pub fn gui(&mut self, ui: &mut Ui) {
         ui.window("Viewport").build(|| {
             if ui.collapsing_header("Camera", TreeNodeFlags::COLLAPSING_HEADER) {

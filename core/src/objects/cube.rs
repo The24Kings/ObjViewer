@@ -106,9 +106,8 @@ impl Cube {
         calculate_normals(&mut vertices, &indices);
 
         let mesh = Mesh {
-            vao: None,
-            vbo: None,
-            ibo: None,
+            vertex_buffer: None,
+            index_buffer: None,
             vertices,
             indices,
         };

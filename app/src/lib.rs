@@ -1,8 +1,9 @@
 use log::{error, info};
 use std::marker::PhantomData;
+use std::time::Duration;
 use winit::application::ApplicationHandler;
 use winit::event::{DeviceEvent, DeviceId, StartCause, WindowEvent};
-use winit::event_loop::{ActiveEventLoop, EventLoop};
+use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::window::WindowId;
 
 use core::PlatformBackend;
@@ -40,88 +41,110 @@ impl<P: PlatformBackend> Default for App<P> {
 
 impl<P: PlatformBackend> ApplicationHandler for App<P> {
     fn new_events(&mut self, _event_loop: &ActiveEventLoop, cause: StartCause) {
-        if let Some(ref mut backend) = self.backend {
-            let shared = backend.state();
-            shared.input.step();
-            shared.wait_cancelled = matches!(cause, StartCause::WaitCancelled { .. });
-        }
+        let backend = match &mut self.backend {
+            Some(backend) => backend,
+            None => return,
+        };
+
+        let shared = backend.state();
+        shared.input.step();
+        shared.wait_cancelled = matches!(cause, StartCause::WaitCancelled { .. });
     }
 
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        if self.backend.is_none() {
-            match P::new(event_loop) {
-                Ok(mut backend) => {
-                    backend.state().window.request_redraw();
-                    self.backend = Some(backend);
-                    info!("App state created");
-                }
-                Err(e) => {
-                    error!("Error creating AppState: {}", e);
-                    event_loop.exit();
-                }
+        if !self.backend.is_none() {
+            return;
+        }
+
+        match P::new(event_loop) {
+            Ok(mut backend) => {
+                backend.state().window.request_redraw();
+                self.backend = Some(backend);
+                info!("App state created");
+            }
+            Err(e) => {
+                error!("Error creating AppState: {}", e);
+                event_loop.exit();
             }
         }
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
-        if let Some(ref mut backend) = self.backend {
-            // Process input and UI events
-            backend.state().input.process_window_event(&event);
-            backend.handle_ui_event(&event);
+        let backend = match &mut self.backend {
+            Some(backend) => backend,
+            None => return,
+        };
 
-            match event {
-                WindowEvent::Resized(size) => {
-                    backend.resize(size);
-                }
-                WindowEvent::CloseRequested => {
-                    info!("The close button was pressed; stopping");
-                    event_loop.exit();
-                }
-                WindowEvent::RedrawRequested => {
-                    let clear_color = backend.clear_color();
-                    backend.state().view_port.render(clear_color);
+        // Resize must happen before we split-borrow state & context
+        if let WindowEvent::Resized(size) = event {
+            backend.resize(size);
+        }
 
-                    backend.render_ui();
+        let (state, context) = backend.inner();
 
-                    // Swap
-                    backend.state().window.pre_present_notify();
-                    backend.swap_buffers();
-                }
-                _ => (),
+        // Process input and UI events
+        state.input.process_window_event(&event);
+        context.handle_event(&state.window, &event);
+
+        match event {
+            WindowEvent::CloseRequested => {
+                info!("The close button was pressed; stopping");
+                event_loop.exit();
             }
+            WindowEvent::RedrawRequested => {
+                let input_cursor = state.input.cursor().unwrap_or((0.0, 0.0));
+                let window_size = state.window.inner_size();
+
+                context.render_frame(
+                    &state.window,
+                    &mut state.view_port,
+                    input_cursor,
+                    (window_size.width, window_size.height),
+                );
+            }
+            _ => (),
         }
     }
 
     fn device_event(&mut self, _event_loop: &ActiveEventLoop, _id: DeviceId, event: DeviceEvent) {
-        if let Some(ref mut backend) = self.backend {
-            backend.state().input.process_device_event(&event);
-        }
+        let backend = match &mut self.backend {
+            Some(backend) => backend,
+            None => return,
+        };
+
+        backend.state().input.process_device_event(&event);
     }
 
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
-        if let Some(ref mut backend) = self.backend {
-            let dt = backend.dt();
-            let state = backend.state();
+        let backend = match &mut self.backend {
+            Some(backend) => backend,
+            None => return,
+        };
 
-            state.input.end_step();
+        let (state, context) = backend.inner();
 
-            let input = state.input.clone();
-            state.view_port.handle_input(dt, &input, event_loop);
+        let dt = context.dt();
 
-            let request_redraw = state.request_redraw;
-            let wait_cancelled = state.wait_cancelled;
+        state.input.end_step();
 
-            if request_redraw && !wait_cancelled {
-                state.window.request_redraw();
-                state.request_redraw = false;
-                state.view_port.update(dt);
-            }
+        let input = state.input.clone();
+        state.view_port.handle_input(dt, &input, event_loop);
 
-            if !wait_cancelled {
-                backend.tick();
-                backend.set_control_flow(event_loop);
-                backend.state().request_redraw = true;
-            }
+        let request_redraw = state.request_redraw;
+        let wait_cancelled = state.wait_cancelled;
+
+        if request_redraw && !wait_cancelled {
+            state.window.request_redraw();
+            state.request_redraw = false;
+            state.view_port.update(dt);
+        }
+
+        if !wait_cancelled {
+            context.tick();
+            event_loop.set_control_flow(ControlFlow::WaitUntil(
+                context.instant() + Duration::from_secs_f64(1.0 / FPS as f64),
+            ));
+            state.request_redraw = true;
         }
     }
 

@@ -92,9 +92,8 @@ impl Light {
         let (vertices, indices) = Self::data();
 
         let mesh = Mesh {
-            vao: None,
-            vbo: None,
-            ibo: None,
+            vertex_buffer: None,
+            index_buffer: None,
             vertices,
             indices,
         };
