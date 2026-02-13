@@ -1,6 +1,6 @@
 #![cfg(target_arch = "wasm32")]
 // Build: wasm-pack build wasm --target web
-// Run (py3): python3 -m http.server
+// Run (py3): python3 -m http.server -d wasm
 
 mod context;
 
