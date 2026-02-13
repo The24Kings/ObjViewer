@@ -99,7 +99,7 @@ impl PlatformBackend for WasmBackend {
         // No-op for WebGL
     }
 
-    fn shared(&mut self) -> &mut State {
+    fn state(&mut self) -> &mut State {
         &mut self.state
     }
 
