@@ -119,10 +119,7 @@ impl Shader {
             let f = s.filepath;
             let t = s.shader_type;
 
-            let source = match fs::read_to_string(f) {
-                Ok(s) => s,
-                Err(e) => return Err(format!("{e}")),
-            };
+            let source = fs::read_to_string(f).map_err(|e| e.to_string())?;
 
             reloaded_shader.add(t, source.as_str(), f)?;
         }
