@@ -19,7 +19,6 @@ use tracing_subscriber::fmt::time::OffsetTime;
 use winit::dpi::PhysicalSize;
 use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
-use winit::platform::x11::EventLoopBuilderExtX11;
 use winit::window::WindowAttributes;
 use winit_input_helper::WinitInputHelper;
 
@@ -177,9 +176,6 @@ fn main() {
         .compact()
         .init();
 
-    let event_loop = EventLoop::builder()
-        .with_x11()
-        .build()
-        .unwrap();
+    let event_loop = EventLoop::new().unwrap();
     App::<NativeBackend>::run(event_loop);
 }
