@@ -335,6 +335,8 @@ impl ViewPort {
 
                 if ui.small_button("Reset##Camera") {
                     self.camera.transform.position = Vec3::new(0.0, 0.0, 5.0);
+                    self.camera.pitch = 0.0;
+                    self.camera.yaw = 0.0;
                     self.camera.frustum.fov = 45.0;
                     self.set_projection_matrix();
                 }
